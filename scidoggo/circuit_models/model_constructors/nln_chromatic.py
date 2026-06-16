@@ -2,7 +2,6 @@
 Nln chromatic encoding model
 """
 
-import torch
 import pyro.distributions as dist
 
 from ..chromatic import (
@@ -13,7 +12,7 @@ from ..chromatic import (
 from ..lnl import LnlModel
 from ..weights import WeightFunc
 from ..gaussian import GaussianObsEncodingModel
-from ..utils import FLOAT_TYPE, identity
+from ..pyro_components import identity
 
 
 def construct_nln_chromatic(

@@ -5,9 +5,7 @@ import torch.nn as nn
 import torch
 from torch.distributions import constraints
 
-import pyro
-from pyro.nn import PyroModule, PyroSample, PyroParam
-import pyro.distributions as dist
+from pyro.nn import PyroModule, PyroParam
 
 
 class ANN(PyroModule):

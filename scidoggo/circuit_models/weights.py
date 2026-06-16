@@ -9,7 +9,7 @@ import pyro
 from pyro.nn import PyroModule, PyroSample, PyroParam
 import pyro.distributions as dist
 
-from .utils import FLOAT_TYPE
+from .pyro_components import FLOAT_TYPE
 from .deep import MonotonicNonlinearity
 
 

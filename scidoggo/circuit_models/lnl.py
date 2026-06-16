@@ -9,7 +9,7 @@ from pyro.nn import PyroModule
 import pyro.distributions as dist
 
 
-from .utils import identity
+from .pyro_components import identity
 from .weights import WeightFunc, MonotonicWeight, FuncWeight
 from .gaussian import GaussianObsEncodingModel
 

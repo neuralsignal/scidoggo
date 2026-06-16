@@ -1,52 +1,40 @@
-import torch
-from numbers import Number
+"""Deep implicit recurrent circuit model and Lightning training wrapper.
+
+This module defines the core :class:`Circuit` model -- a recurrent neural
+circuit whose steady state is found by an Anderson-accelerated fixed-point
+solver (:func:`anderson`) of the single-step update :func:`step_forward` -- and
+the :class:`LitModel` PyTorch Lightning wrapper used to train it.
+
+Sparse parameterizations live in :mod:`.weight_dict` and the nonlinearities /
+losses live in :mod:`.losses`.
+"""
+
+from typing import Callable, Optional
+
 import numpy as np
-import pandas as pd
-from typing import Optional, Union
-from torch import nn
-import torch.distributions as dist
+import torch
 import torch.autograd as autograd
+from torch import nn
 from torch.optim import Adam, AdamW, SGD
 from torch.utils.data import DataLoader, TensorDataset
 from torcheval.metrics.functional import r2_score
 
 from pytorch_lightning import LightningModule, Trainer
 
+from .losses import mse_loss
+from .weight_dict import (
+    ValuesDict,
+    WeightDict,
+    matrix_to_weightdict,
+    values_to_dict,
+)
 
-def tanh_like(x, r0=0, a=1, b=1):
-    """
-    tanh-like function from Rajan, Abbott, Sompolinsky (2010).
-    """
-    # tanh = getattr(module, 'tanh')
-    # zeros_like = getattr(module, 'zeros_like')
-    y = torch.zeros_like(x)
-    x = b * x
-    
-    y1 = (1 - r0) * torch.tanh(x / (1 - r0 + 1e-6))
-    y2 = (1 + r0) * torch.tanh(x / (1 + r0 + 1e-6))
-
-    y[x <= 0] = y1[x <= 0]
-    y[x > 0] = y2[x > 0]
-
-    return a * y     
-
-
-def mse_loss(
-    input: torch.Tensor,
-    target: torch.Tensor,
-    mask: torch.Tensor = None,
-    weight: torch.Tensor = None,
-) -> torch.Tensor:
-    if mask is not None:
-        input = input[mask]
-        target = target[mask]
-        if weight is not None:
-            weight = weight[mask]
-    if weight is None:
-        res_squared = (input - target) ** 2
-    else:
-        res_squared = weight * (input - target) ** 2
-    return res_squared.mean()
+__all__ = [
+    "step_forward",
+    "anderson",
+    "Circuit",
+    "LitModel",
+]
 
 
 def step_forward(
@@ -56,279 +44,76 @@ def step_forward(
     Wr: torch.Tensor,  # recurrent weights
     offset: torch.Tensor,  # offset
     gain: torch.Tensor,  # gain
-    nonlin: callable,  # nonlinearity
-):
+    nonlin: Callable,  # nonlinearity
+) -> torch.Tensor:
+    """Apply one recurrent update step of the circuit dynamics.
+
+    Parameters
+    ----------
+    X : torch.Tensor
+        Inputs to the recurrent circuit.
+    Yt : torch.Tensor
+        Current state ``Y(t-1)`` of the recurrent circuit.
+    Wi : torch.Tensor
+        Input weight matrix.
+    Wr : torch.Tensor
+        Recurrent weight matrix.
+    offset : torch.Tensor
+        Per-neuron offset applied before the nonlinearity.
+    gain : torch.Tensor
+        Per-neuron gain applied before the nonlinearity.
+    nonlin : callable
+        Element-wise nonlinearity.
+
+    Returns
+    -------
+    torch.Tensor
+        Updated state ``Y(t)``.
+    """
     Yt = torch.matmul(X, Wi) + torch.matmul(Yt, Wr)
     Yt = nonlin(gain * Yt - offset) + nonlin(offset)
     return Yt
 
 
-def matrix_to_weightdict(W: Union[np.ndarray, torch.Tensor, pd.DataFrame, list[list]]):
-    if isinstance(W, pd.DataFrame):
-        W = W.values
-    elif isinstance(W, torch.Tensor):
-        W = W.detach().cpu().numpy()
-
-    weight_dict = {}
-    for ipre, values in enumerate(W):
-        for ipost, value in enumerate(values):
-            weight_dict[(ipre, ipost)] = value
-
-    return weight_dict
-
-def values_to_dict(values: Union[np.ndarray, torch.Tensor, pd.Series, list]):
-    if isinstance(values, pd.Series):
-        values = values.values
-    elif isinstance(values, torch.Tensor):
-        values = values.detach().cpu().numpy()
-
-    values_dict = {}
-    for i, value in enumerate(values):
-        values_dict[i] = value
-
-    return values_dict
-
-
-class WeightDict:
-    def __init__(self, weight_dict: dict, shape: tuple):
-        self.shape = shape
-
-        fixed_idcs = []
-        fixed_jdcs = []
-        fixed_value = []
-        idcs = []
-        jdcs = []
-        vidcs = []
-        lower = []
-        upper = []
-        inits = []
-        labels = []  # labels for unfixed
-        n_params = 0
-        for k, v in weight_dict.items():
-            # fixed values
-            if isinstance(v, Number) and isinstance(k[0], Number):
-                fixed_value.append(v)
-                fixed_idcs.append(k[0])
-                fixed_jdcs.append(k[1])
-                continue
-            elif isinstance(v, Number):
-                fixed_value.extend([v] * len(k[0]))
-                fixed_idcs.extend(k[0])
-                fixed_jdcs.extend(k[1])
-                continue
-
-            if isinstance(k[0], Number):
-                idcs.append(k[0])
-                jdcs.append(k[1])
-                vidcs.append(n_params)
-
-            else:
-                idcs.extend(k[0])
-                jdcs.extend(k[1])
-                vidcs.extend([n_params] * len(k[0]))
-
-            lower.append(v[0])
-            upper.append(v[1])
-            # add inits
-            if len(v) == 3:
-                inits.append(v[2])
-            else:
-                inits.append(np.nan)
-
-            labels.append(k)
-            n_params += 1
-
-        self.fixed_idcs = np.array(fixed_idcs)
-        self.fixed_jdcs = np.array(fixed_jdcs)
-        self.fixed_value = np.array(fixed_value)
-
-        self.idcs = np.array(idcs)
-        self.jdcs = np.array(jdcs)
-        self.lower = np.array(lower)
-        self.upper = np.array(upper)
-        self.inits = np.array(inits)
-        self.labels = labels
-        self.vidcs = np.array(vidcs)
-
-        self.n_params = len(self.lower)
-
-        assert len(idcs) == len(vidcs)
-
-    def get_weights(self, w: torch.Tensor):
-        weights = torch.zeros(self.shape).to(w)
-        if len(self.fixed_idcs):
-            weights[self.fixed_idcs, self.fixed_jdcs] = torch.tensor(
-                self.fixed_value
-            ).to(w)
-        if len(self.idcs):
-            weights[self.idcs, self.jdcs] = w[self.vidcs]
-        return weights
-
-    def clip_values(self, w: nn.Parameter):
-        with torch.no_grad():
-            w.clip_(torch.tensor(self.lower).to(w), torch.tensor(self.upper).to(w))
-        return w
-
-    def sample_values(self, w: nn.Parameter):
-        isnull = np.isnan(self.inits)
-        with torch.no_grad():
-            w[isnull] = dist.Uniform(
-                torch.tensor(self.lower[isnull]).to(w),
-                torch.tensor(self.upper[isnull]).to(w),
-            ).sample()
-            w[~isnull] = torch.tensor(self.inits[~isnull]).to(w)
-            return w
-
-
-class ValuesDict:
-    def __init__(self, values_dict, length, default=0.0):
-        self.length = length
-        self.default = default
-
-        fixed_idcs = []
-        fixed_value = []
-        idcs = []
-        vidcs = []
-        lower = []
-        upper = []
-        inits = []
-        labels = []
-
-        n_params = 0
-        for k, v in values_dict.items():
-            # fixed values
-            if isinstance(v, Number) and isinstance(k, Number):
-                fixed_value.append(v)
-                fixed_idcs.append(k)
-                continue
-            elif isinstance(v, Number):
-                fixed_value.extend([v] * len(k))
-                fixed_idcs.extend(k)
-                continue
-
-            # non fixed values
-            if isinstance(k, Number):
-                idcs.append(k)
-                vidcs.append(n_params)
-            else:
-                # same parameter for multiple neurons
-                idcs.extend(k)
-                vidcs.extend([n_params] * len(k))
-
-            lower.append(v[0])
-            upper.append(v[1])
-            if len(v) == 3:
-                inits.append(v[2])
-            else:
-                inits.append(np.nan)
-
-            labels.append(k)
-            n_params += 1
-
-        assert len(lower) == n_params
-
-        self.fixed_idcs = np.array(fixed_idcs)
-        self.fixed_value = np.array(fixed_value)
-
-        self.idcs = np.array(idcs)
-        self.vidcs = np.array(vidcs)
-        self.lower = np.array(lower)
-        self.upper = np.array(upper)
-        self.inits = np.array(inits)
-        self.labels = labels
-        self.n_params = len(self.lower)
-
-        assert len(idcs) == len(vidcs)
-
-    def get_values(self, w: torch.Tensor):
-        values = torch.ones(self.length).to(w) * self.default
-        if len(self.fixed_idcs):
-            values[self.fixed_idcs] = torch.tensor(self.fixed_value).to(w)
-        if len(self.idcs):
-            values[self.idcs] = w[self.vidcs]
-        return values
-
-    def clip_values(self, w: nn.Parameter):
-        with torch.no_grad():
-            w.clip_(torch.tensor(self.lower).to(w), torch.tensor(self.upper).to(w))
-        return w
-
-    def sample_values(self, w: nn.Parameter):
-        isnull = np.isnan(self.inits)
-        with torch.no_grad():
-            w[isnull] = dist.Uniform(
-                torch.tensor(self.lower[isnull]).to(w),
-                torch.tensor(self.upper[isnull]).to(w),
-            ).sample()
-            w[~isnull] = torch.tensor(self.inits[~isnull]).to(w)
-            return w
-        
-        
-class TanhLike(nn.Module):
-    
-    def __init__(
-        self, length, r0_dict={}, a_dict={}, b_dict={}, 
-        device=None,
-        dtype=None,
-    ):
-        super().__init__()
-        self.length = length
-        self.r0_dict = r0_dict
-        self.a_dict = a_dict
-        self.b_dict = b_dict
-        self.r0_dict_obj = ValuesDict(r0_dict, length, default=0.0)
-        self.a_dict_obj = ValuesDict(a_dict, length, default=1.0)
-        self.b_dict_obj = ValuesDict(b_dict, length, default=1.0)
-        
-        factory_kwargs = dict(dtype=dtype, device=device)
-        self._r0 = nn.Parameter(
-            torch.empty(self.r0_dict_obj.n_params, **factory_kwargs)
-        )
-        self._a = nn.Parameter(
-            torch.empty(self.a_dict_obj.n_params, **factory_kwargs)
-        )
-        self._b = nn.Parameter(
-            torch.empty(self.b_dict_obj.n_params, **factory_kwargs)
-        )
-        
-        self.reset_parameters()
-        
-        self.num_params = sum(param.numel() for param in self.parameters())
-        
-    @property
-    def r0(self):
-        return self.r0_dict_obj.get_values(self._r0)
-    
-    @property
-    def a(self):
-        return self.a_dict_obj.get_values(self._a)
-    
-    @property
-    def b(self):
-        return self.b_dict_obj.get_values(self._b)
-    
-    def reset_parameters(self):
-        self.r0_dict_obj.sample_values(self._r0)
-        self.a_dict_obj.sample_values(self._a)
-        self.b_dict_obj.sample_values(self._b)
-        
-    def clip_parameters(self):
-        self.r0_dict_obj.clip_values(self._r0)
-        self.a_dict_obj.clip_values(self._a)
-        self.b_dict_obj.clip_values(self._b)
-        
-    def get_dict(self):
-        return {
-            "r0_dict": values_to_dict(self.r0),
-            "a_dict": values_to_dict(self.a),
-            "b_dict": values_to_dict(self.b),
-        }
-        
-    def forward(self, x):
-        return tanh_like(x, r0=self.r0, a=self.a, b=self.b)
-
-
 class Circuit(nn.Module):
+    """Recurrent circuit solved to its fixed point with Anderson acceleration.
+
+    The circuit applies :func:`step_forward` repeatedly to find the steady-state
+    activity for a given input, using :func:`anderson` for the forward solve and
+    an implicit-differentiation backward hook for gradients.
+
+    Parameters
+    ----------
+    n_neurons : int
+        Number of recurrent neurons.
+    n_inputs : int
+        Number of input dimensions.
+    winp_dict : dict
+        Weight-dict specification for the input weights (shape
+        ``(n_inputs, n_neurons)``).
+    wrec_dict : dict
+        Weight-dict specification for the recurrent weights (shape
+        ``(n_neurons, n_neurons)``).
+    offset_dict : dict, optional
+        Values-dict specification for the per-neuron offsets. Defaults to ``{}``.
+    gain_dict : dict, optional
+        Values-dict specification for the per-neuron gains. Defaults to ``{}``.
+    output_gain_dict : dict, optional
+        Values-dict specification for the per-neuron output gains. Defaults to
+        ``{}``.
+    nonlin : callable, optional
+        Element-wise nonlinearity. Defaults to :func:`torch.tanh`.
+    normalize_weights : bool, optional
+        Whether to L1-normalize the stacked input/recurrent weights per column.
+        Defaults to ``True``.
+    device : torch.device, optional
+        Device for the parameter tensors.
+    dtype : torch.dtype, optional
+        Dtype for the parameter tensors.
+    anderson_kwargs : dict, optional
+        Extra keyword arguments forwarded to :func:`anderson`.
+    """
+
     def __init__(
         self,
         n_neurons: int,
@@ -338,11 +123,11 @@ class Circuit(nn.Module):
         offset_dict: dict = {},
         gain_dict: dict = {},
         output_gain_dict: dict = {},
-        nonlin: callable = torch.tanh,
+        nonlin: Callable = torch.tanh,
         normalize_weights: bool = True,
         device=None,
         dtype=None,
-        anderson_kwargs=None,
+        anderson_kwargs: Optional[dict] = None,
     ):
         super().__init__()
         self.normalize_weights = normalize_weights
@@ -387,33 +172,40 @@ class Circuit(nn.Module):
         self.num_params = sum(param.numel() for param in self.parameters())
 
     @property
-    def Wi(self):
+    def Wi(self) -> torch.Tensor:
+        """torch.Tensor: Dense input weight matrix."""
         return self.winp_dict_obj.get_weights(self._wi)
 
     @property
-    def Wr(self):
+    def Wr(self) -> torch.Tensor:
+        """torch.Tensor: Dense recurrent weight matrix."""
         return self.wrec_dict_obj.get_weights(self._wr)
 
     @property
-    def offset(self):
+    def offset(self) -> torch.Tensor:
+        """torch.Tensor: Dense per-neuron offsets."""
         return self.offset_dict_obj.get_values(self._offset)
 
     @property
-    def gain(self):
+    def gain(self) -> torch.Tensor:
+        """torch.Tensor: Dense per-neuron gains."""
         return self.gain_dict_obj.get_values(self._gain)
-    
+
     @property
-    def output_gain(self):
+    def output_gain(self) -> torch.Tensor:
+        """torch.Tensor: Dense per-neuron output gains."""
         return self.output_gain_dict_obj.get_values(self._output_gain)
 
-    def reset_parameters(self):
+    def reset_parameters(self) -> None:
+        """Re-initialize all trainable parameters in-place."""
         self.winp_dict_obj.sample_values(self._wi)
         self.wrec_dict_obj.sample_values(self._wr)
         self.offset_dict_obj.sample_values(self._offset)
         self.gain_dict_obj.sample_values(self._gain)
         self.output_gain_dict_obj.sample_values(self._output_gain)
 
-    def clip_parameters(self):
+    def clip_parameters(self) -> None:
+        """Clip all trainable parameters (and the nonlinearity) to bounds."""
         self.winp_dict_obj.clip_values(self._wi)
         self.wrec_dict_obj.clip_values(self._wr)
         self.offset_dict_obj.clip_values(self._offset)
@@ -421,8 +213,17 @@ class Circuit(nn.Module):
         self.output_gain_dict_obj.clip_values(self._output_gain)
         if hasattr(self.nonlin, "clip_parameters"):
             self.nonlin.clip_parameters()
-            
-    def get_dict(self):
+
+    def get_dict(self) -> dict:
+        """Return the current parameters as weight/values-dict mappings.
+
+        Returns
+        -------
+        dict
+            Mapping with keys ``"winp_dict"``, ``"wrec_dict"``,
+            ``"offset_dict"``, ``"gain_dict"`` and ``"output_gain_dict"`` (and
+            ``"nonlin"`` if the nonlinearity exposes ``get_dict``).
+        """
         d = {
             "winp_dict": matrix_to_weightdict(self.Wi),
             "wrec_dict": matrix_to_weightdict(self.Wr),
@@ -435,10 +236,30 @@ class Circuit(nn.Module):
         return d
 
     def forward(
-            self, X: torch.Tensor, Y=None, 
-            silence_inputs=None,
-            silence_recs=None
-        ):
+        self,
+        X: torch.Tensor,
+        Y: Optional[torch.Tensor] = None,
+        silence_inputs: Optional[list] = None,
+        silence_recs: Optional[list] = None,
+    ) -> torch.Tensor:
+        """Solve the circuit to its fixed point for the given inputs.
+
+        Parameters
+        ----------
+        X : torch.Tensor
+            Batch of inputs, shape ``(batch, n_inputs)``.
+        Y : torch.Tensor, optional
+            Initial state. Defaults to zeros of shape ``(batch, n_neurons)``.
+        silence_inputs : list of int, optional
+            Input indices whose weights are zeroed before the solve.
+        silence_recs : list of int, optional
+            Recurrent indices whose weights are zeroed before the solve.
+
+        Returns
+        -------
+        torch.Tensor
+            Steady-state activity scaled by ``output_gain``.
+        """
         if Y is None:
             Y = torch.zeros((X.shape[0], self.n_neurons)).to(X)
 
@@ -447,7 +268,7 @@ class Circuit(nn.Module):
             Wi.index_fill_(0, torch.tensor(silence_inputs), 0.0)
         if silence_recs is not None:
             Wr.index_fill_(0, torch.tensor(silence_recs), 0.0)
-        
+
         if self.normalize_weights:
             norm = torch.linalg.norm(torch.vstack([Wi, Wr]), ord=1, axis=0)
             Wi = Wi / norm
@@ -510,17 +331,48 @@ class Circuit(nn.Module):
 
 
 def anderson(
-    f: callable,
+    f: Callable,
     x0: torch.Tensor,
-    m=6,
-    lam=1e-4,
-    threshold=50,
-    eps=1e-3,
-    stop_mode="rel",
-    beta=1.0,
+    m: int = 6,
+    lam: float = 1e-4,
+    threshold: int = 50,
+    eps: float = 1e-3,
+    stop_mode: str = "rel",
+    beta: float = 1.0,
+    **kwargs,
+) -> dict:
+    """Anderson acceleration for fixed point iteration.
+
+    Parameters
+    ----------
+    f : callable
+        Fixed-point map; ``f(x)`` should return a tensor shaped like ``x``.
+    x0 : torch.Tensor
+        Initial guess, shape ``(batch, length)``.
+    m : int, optional
+        History window size. Defaults to ``6``.
+    lam : float, optional
+        Regularization added to the normal equations. Defaults to ``1e-4``.
+    threshold : int, optional
+        Maximum number of iterations. Defaults to ``50``.
+    eps : float, optional
+        Convergence tolerance on the ``stop_mode`` residual. Defaults to
+        ``1e-3``.
+    stop_mode : str, optional
+        Residual mode used for the stopping criterion, ``"rel"`` or ``"abs"``.
+        Defaults to ``"rel"``.
+    beta : float, optional
+        Mixing parameter. Defaults to ``1.0``.
     **kwargs
-):
-    """Anderson acceleration for fixed point iteration."""
+        Ignored extra keyword arguments (for call-site convenience).
+
+    Returns
+    -------
+    dict
+        Result dictionary with keys ``"result"``, ``"lowest"``, ``"nstep"``,
+        ``"prot_break"``, ``"abs_trace"``, ``"rel_trace"``, ``"eps"`` and
+        ``"threshold"``.
+    """
     bsz, L = x0.shape
     alternative_mode = "rel" if stop_mode == "abs" else "abs"
     X = torch.zeros(bsz, m, L, dtype=x0.dtype, device=x0.device)
@@ -563,10 +415,7 @@ def anderson(
         for mode in ["rel", "abs"]:
             if diff_dict[mode] < lowest_dict[mode]:
                 if mode == stop_mode:
-                    lowest_xest, lowest_gx = (
-                        X[:, k % m].view_as(x0).clone().detach(),
-                        gx.clone().detach(),
-                    )
+                    lowest_xest = X[:, k % m].view_as(x0).clone().detach()
                 lowest_dict[mode] = diff_dict[mode]
                 lowest_step_dict[mode] = k
 
@@ -591,20 +440,41 @@ def anderson(
 
 
 class LitModel(LightningModule):
-    """PyTorch Lightning module for training a model on Numerai data."""
-    
+    """PyTorch Lightning module for training a :class:`Circuit` model.
+
+    Parameters
+    ----------
+    loss : callable, optional
+        Loss function called as ``loss(Ypred, Y, mask=..., weight=...)``.
+        Defaults to :func:`~.losses.mse_loss`.
+    learning_rate : float, optional
+        Optimizer learning rate. Defaults to ``1e-3``.
+    optimizer_type : str, optional
+        One of ``"adam"``, ``"sgd"`` or ``"adamw"``. Defaults to ``"adamw"``.
+    opt_args : dict, optional
+        Extra keyword arguments forwarded to the optimizer.
+    schedule : str, optional
+        Learning-rate schedule identifier. Defaults to ``"linear"``.
+    warmup_steps : int, optional
+        Number of warmup steps. Defaults to ``0``.
+    total_steps : int, optional
+        Total number of training steps. Defaults to ``1000``.
+    model_kwargs : dict, optional
+        Keyword arguments forwarded to the wrapped model constructor.
+    """
+
     model_class = Circuit
 
     def __init__(
         self,
-        loss=mse_loss,
-        learning_rate=1e-3,
-        optimizer_type="adamw",
-        opt_args=None,
-        schedule="linear",
-        warmup_steps=0,
-        total_steps=1000,
-        model_kwargs={},
+        loss: Callable = mse_loss,
+        learning_rate: float = 1e-3,
+        optimizer_type: str = "adamw",
+        opt_args: Optional[dict] = None,
+        schedule: str = "linear",
+        warmup_steps: int = 0,
+        total_steps: int = 1000,
+        model_kwargs: dict = {},
     ):
         super().__init__()
         self.loss = loss
@@ -619,23 +489,53 @@ class LitModel(LightningModule):
         self.save_hyperparameters(ignore=["model", "loss_function"])
 
     def forward(self, X, Y, W=None):
+        """Compute the loss and predictions for a batch.
+
+        Parameters
+        ----------
+        X : torch.Tensor
+            Inputs.
+        Y : torch.Tensor
+            Targets (non-finite entries are masked out of the loss).
+        W : torch.Tensor, optional
+            Per-entry sample weights.
+
+        Returns
+        -------
+        tuple of (torch.Tensor, torch.Tensor)
+            The scalar loss and the model predictions.
+        """
         Ypred = self.model(X)
         loss = self.loss(Ypred, Y, mask=torch.isfinite(Y), weight=W)
         return loss, Ypred
-    
+
     def log_r2s(self, Ypred, Y, W, prefix="train"):
+        """Log per-target and mean weighted R^2 scores.
+
+        Parameters
+        ----------
+        Ypred : torch.Tensor
+            Model predictions.
+        Y : torch.Tensor
+            Targets.
+        W : torch.Tensor
+            Per-entry sample weights.
+        prefix : str, optional
+            Prefix for the logged metric names. Defaults to ``"train"``.
+        """
         r2s = 0.0
         for i, (y, ypred, w) in enumerate(zip(Y.T, Ypred.T, W.T)):
             isfinite = torch.isfinite(y)
             if isfinite.sum() < 2:
                 continue
             w = torch.sqrt(w[isfinite])
-            r2 = r2_score(ypred[isfinite]*w, y[isfinite]*w)
+            r2 = r2_score(ypred[isfinite] * w, y[isfinite] * w)
             r2s += r2
             self.log(f"{prefix}_r2_{i}", r2)
         self.log(f"{prefix}_r2", r2s / Y.shape[-1])
 
     def training_step(self, batch, batch_idx):
+        """Run a single training step, clip parameters and log metrics."""
         if len(batch) == 2:
             X, Y = batch
             W = None
@@ -643,41 +543,55 @@ class LitModel(LightningModule):
             X, Y, W = batch
 
         loss, Ypred = self.forward(X, Y, W)
-        
+
         self.model.clip_parameters()
-        
+
         self.log("train_loss", loss)
         self.log_r2s(Ypred, Y, W, prefix="train")
-        
+
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
+        """Run a single validation step and log metrics."""
         if len(batch) == 2:
             X, Y = batch
             W = None
         else:
             X, Y, W = batch
-            
+
         loss, Ypred = self.forward(X, Y, W)
-                
+
         self.log("val_loss", loss)
         self.log_r2s(Ypred, Y, W, prefix="val")
         return loss
-        
+
     def test_step(self, batch, batch_idx):
+        """Run a single test step and log metrics."""
         if len(batch) == 2:
             X, Y = batch
             W = None
         else:
             X, Y, W = batch
-            
+
         loss, Ypred = self.forward(X, Y, W)
-                
+
         self.log("test_loss", loss)
         self.log_r2s(Ypred, Y, W, prefix="test")
         return loss
 
     def configure_optimizers(self):
+        """Build the optimizer from ``optimizer_type``.
+
+        Returns
+        -------
+        torch.optim.Optimizer
+            The configured optimizer.
+
+        Raises
+        ------
+        ValueError
+            If ``optimizer_type`` is not recognized.
+        """
         if self.optimizer_type == "adam":
             optimizer = Adam(self.parameters(), lr=self.learning_rate, **self.opt_args)
         elif self.optimizer_type == "sgd":
@@ -692,7 +606,6 @@ class LitModel(LightningModule):
         #     opt, max_epochs*len(train_loader), eta_min=1e-6
         # )
         return optimizer
-
 
 
 if __name__ == "__main__":

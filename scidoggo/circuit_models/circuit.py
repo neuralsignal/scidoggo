@@ -5,13 +5,13 @@ Circuit modeling
 import warnings
 import torch
 
-import pyro
 from pyro.nn import PyroModule
 import pyro.distributions as dist
 
-from .utils import FLOAT_TYPE, identity
-from .gaussian import FixedValueModel, GaussianObsModel, UninformativePriorModel, FixedScalePriorModel
+from .pyro_components import identity
+from .gaussian import FixedValueModel, UninformativePriorModel, FixedScalePriorModel
 from .weights import WeightFunc
+from .circuit_observation import ObservationModel
 
 
 class ConductanceBasedIntegration(PyroModule):
@@ -258,29 +258,6 @@ class CircuitModel(PyroModule):
             y0.expand(*ypreds.shape), 
             labels=y_labels
         )
-
-
-class ObservationModel(PyroModule):
-    """
-    Classic Paccman observation model
-    """
-
-    def __init__(self, obs_scale=1, latent_scale=1, normalize=None, latent=False):
-        super().__init__()
-        self.obs_scale = obs_scale
-        self.latent_scale = latent_scale
-        self.latent = latent
-        self.normalize = normalize
-
-        self.obs_model = GaussianObsModel(self.obs_scale, normalize=self.normalize)
-        if self.latent:
-            self.latent_model = GaussianObsModel(self.latent_scale, normalize=None)
-
-    def forward(self, xobs, xpred, xlatent=None, labels=None):
-        self.obs_model(xobs, xpred, labels=labels)
-        if self.latent and xlatent is not None:
-            self.latent_model(xpred, xlatent)
-
 
 
 class StandardDynamicCircuitModel(CircuitModel):

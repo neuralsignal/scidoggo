@@ -3,14 +3,13 @@ Gaussian observations
 """
 
 import numpy as np
-from numpy.core.fromnumeric import mean
 import torch
 
 import pyro
 from pyro.nn import PyroModule
 import pyro.distributions as dist
 
-from .utils import FLOAT_TYPE, grouped_est
+from .pyro_components import grouped_est
 
 
 class FixedPriorModel(PyroModule):

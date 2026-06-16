@@ -8,7 +8,7 @@ from pyro.nn import PyroModule, PyroSample
 import pyro.distributions as dist
 
 
-from .utils import identity, FLOAT_TYPE, get_dirichlet_adaptation_prior
+from .pyro_components import identity, FLOAT_TYPE, get_dirichlet_adaptation_prior
 
 
 class DirichletAdaptationPrior(PyroModule):
