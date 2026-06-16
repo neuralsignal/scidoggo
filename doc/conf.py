@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# project-template documentation build configuration file, created by
-# sphinx-quickstart on Mon Jan 18 14:44:12 2016.
+# scidoggo documentation build configuration file.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -13,18 +12,11 @@
 # serve to show the default.
 
 import sys
-import os
 
-import sphinx_gallery
 import sphinx_rtd_theme
 
-# Add to sys.path the top-level directory where the package is located.
-sys.path.insert(0, os.path.abspath('..'))
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#sys.path.insert(0, os.path.abspath('.'))
+# scidoggo is pip-installed (pyproject.toml packaging), so there is no need to
+# hack ``sys.path`` to find the package.
 
 # -- General configuration ------------------------------------------------
 
@@ -40,6 +32,7 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
+    'sphinx.ext.imgmath',
     'numpydoc',
     'sphinx_gallery.gen_gallery',
 ]
@@ -48,15 +41,10 @@ extensions = [
 # see https://github.com/numpy/numpydoc/issues/69
 numpydoc_show_class_members = False
 
-# pngmath / imgmath compatibility layer for different sphinx versions
-import sphinx
-from distutils.version import LooseVersion
-if LooseVersion(sphinx.__version__) < LooseVersion('1.4'):
-    extensions.append('sphinx.ext.pngmath')
-else:
-    extensions.append('sphinx.ext.imgmath')
-
-autodoc_default_flags = ['members', 'inherited-members']
+autodoc_default_options = {
+    'members': True,
+    'inherited-members': True,
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -78,7 +66,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'scidoggo'
-copyright = u'2016, Matthias Christenson'
+copyright = u'2024, Matthias Christenson'
+author = u'Matthias Christenson'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -214,7 +203,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'project-templatedoc'
+htmlhelp_basename = 'scidoggodoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -234,7 +223,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'project-template.tex', u'project-template Documentation',
+  ('index', 'scidoggo.tex', u'scidoggo Documentation',
    u'Matthias Christenson', 'manual'),
 ]
 
@@ -264,7 +253,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'project-template', u'project-template Documentation',
+    ('index', 'scidoggo', u'scidoggo Documentation',
      [u'Matthias Christenson'], 1)
 ]
 
@@ -278,8 +267,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'project-template', u'project-template Documentation',
-   u'Matthias Christenson', 'project-template', 'One line description of project.',
+  ('index', 'scidoggo', u'scidoggo Documentation',
+   u'Matthias Christenson', 'scidoggo',
+   'A collection of scientific models with a scikit-learn API.',
    'Miscellaneous'),
 ]
 
@@ -317,4 +307,4 @@ sphinx_gallery_conf = {
 
 def setup(app):
     # a copy button to copy snippet of code from the documentation
-    app.add_javascript('js/copybutton.js')
+    app.add_js_file('js/copybutton.js')

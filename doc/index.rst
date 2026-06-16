@@ -1,13 +1,15 @@
-.. project-template documentation master file, created by
-   sphinx-quickstart on Mon Jan 18 14:44:12 2016.
+.. scidoggo documentation master file.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
 Welcome to scidoggo's documentation!
-============================================
+====================================
 
-This project is a reference implementation to anyone who wishes to develop
-scikit-learn compatible classes.
+``scidoggo`` is a collection of shallow and deep scientific models and data
+tools, all exposing a familiar scikit-learn API. The core package depends only
+on numpy, scipy and scikit-learn; heavier models (neural encoding,
+probabilistic circuits, deep implicit circuits, rank-1-plus-sparse) are
+available through optional extras.
 
 .. toctree::
    :maxdepth: 2
@@ -34,19 +36,20 @@ scikit-learn compatible classes.
 `Getting started <quick_start.html>`_
 -------------------------------------
 
-Information regarding this template and how to modify it for your own project.
+Installation instructions (core and extras) and short runnable usage snippets.
 
 `User Guide <user_guide.html>`_
 -------------------------------
 
-An example of narrative documentation.
+Narrative documentation describing the model families and the extras mechanism.
 
 `API Documentation <api.html>`_
 -------------------------------
 
-An example of API documentation.
+The full public API, grouped by subpackage.
 
 `Examples <auto_examples/index.html>`_
 --------------------------------------
 
-A set of examples. It complements the `User Guide <user_guide.html>`_.
+A gallery of runnable examples that complements the
+`User Guide <user_guide.html>`_.

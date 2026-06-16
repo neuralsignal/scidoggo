@@ -1,47 +1,77 @@
 .. -*- mode: rst -*-
 
-.. .. |Travis|_ |AppVeyor|_ |Codecov|_ |CircleCI|_ |ReadTheDocs|_
+scidoggo: a collection of shallow and deep scientific models
+============================================================
 
-.. .. |Travis| image:: https://travis-ci.org/scikit-learn-contrib/project-template.svg?branch=master
-.. .. _Travis: https://travis-ci.org/scikit-learn-contrib/project-template
+``scidoggo`` is a collection of models and data tools, gathered and modified
+across different research projects, all exposing a familiar scikit-learn API
+(``fit`` / ``predict`` / ``transform``). The core package depends only on
+numpy, scipy and scikit-learn; heavier models are available through optional
+extras.
 
-.. .. |AppVeyor| image:: https://ci.appveyor.com/api/projects/status/coy2qqaqr1rnnt5y/branch/master?svg=true
-.. .. _AppVeyor: https://ci.appveyor.com/project/glemaitre/project-template
+Installation
+============
 
-.. .. |Codecov| image:: https://codecov.io/gh/scikit-learn-contrib/project-template/branch/master/graph/badge.svg
-.. .. _Codecov: https://codecov.io/gh/scikit-learn-contrib/project-template
+Core install (numpy / scipy / scikit-learn only)::
 
-.. .. |CircleCI| image:: https://circleci.com/gh/scikit-learn-contrib/project-template.svg?style=shield&circle-token=:circle-token
-.. .. _CircleCI: https://circleci.com/gh/scikit-learn-contrib/project-template/tree/master
+    pip install scidoggo
 
-.. .. |ReadTheDocs| image:: https://readthedocs.org/projects/scidoggo/badge/?version=latest
-.. .. _ReadTheDocs: https://scidoggo.readthedocs.io/en/latest/?badge=latest
+Optional extras pull in the heavier dependencies. Each optional model raises a
+clear ``MissingDependencyError`` if used without its extra installed::
 
-WIP: A collection of shallow and deep models
-============================================
+    pip install "scidoggo[neural]"     # torch + skorch (two-layer encoding model)
+    pip install "scidoggo[circuits]"   # pyro (probabilistic circuit models)
+    pip install "scidoggo[deep]"       # torch + pytorch-lightning (implicit circuit models)
+    pip install "scidoggo[sparse]"     # cvxpy (Rank1PlusSparse)
 
-This project is still under development. 
-This project contains a selection of models and data tools I have created, modified, and used for different projects.
+Install everything at once::
 
+    pip install "scidoggo[all]"
 
 Models
 ======
 
-* Selectivity Model: model that non-linearly integrates input features to produce concave and convex isoresponse surfaces
-* Partial Least Squares: modification of `sklearn.pls` models to allow for optional bias removal and orthogonalization of rotations and loadings
-* RbfModel: modified and sklearn-compatible version of the `scipy.interpolate.RBFInterpolator` model
-* Collection of probabilistic circuit model designs using pytorch and pyro
-    * These models allow you to model circuits and incorporating anatomical constraints as priors
-* Deep implicit circuit models designed using pytorch and lightning
-    * The models allow you to model constrained circuits assuming the observed responses are at steady-state
-* Rank1PlusSparse: linear model with a rank one constraint and an added sparse weight matrix
-* RankConstraint: linear model with a rank constraint (different approach to PLS)
-* Tikhonov regression
-* TwoLayerEncodingModel: two layer encoding model with different objective functions
+Core models (importable directly from ``scidoggo``):
 
+* **Cross decomposition** (``scidoggo.cross_decomposition``): ``PLSRegression``,
+  ``PLSCanonical``, ``CCA`` and ``PLSSVD`` -- the Partial Least Squares family
+  forked from scikit-learn with an optional bias-removal (``demean``) flag and
+  helpers (``decompose_coef``, ``kth_coef``, ``kth_rotations``) to orthogonalize
+  and inspect the components.
+* **Linear models** (``scidoggo.linear_model``): ``Tikhonov`` (generalized
+  ridge regression with a non-diagonal regularization matrix, plus solver
+  helpers in ``scidoggo.linear_model.tikhonov_solver``), ``RankConstraint``
+  (rank-constrained linear model, an alternative to PLS) and
+  ``SelectivityModel`` (non-linear integration of input features producing
+  concave/convex isoresponse surfaces).
+* **Interpolation** (``scidoggo.interpolation``): ``RbfRegression`` -- a
+  scikit-learn-compatible wrapper around ``scipy.interpolate.RBFInterpolator``.
+* **Resampling** (``scidoggo.resampling``): bootstrap utilities
+  ``draw_bs_replicates``, ``bs_cis``, ``sig_directional`` and ``sig_overlap``.
 
+Optional models (each behind an extra):
+
+* **Two-layer encoding model** (``scidoggo.neural``, ``[neural]``).
+* **Probabilistic circuit / chromatic models** (``scidoggo.circuit_models``,
+  ``[circuits]``) -- model circuits while incorporating anatomical constraints
+  as priors.
+* **Deep implicit circuit models** (``scidoggo.deep_implicit_circuits``,
+  ``[deep]``) -- constrained circuit models assuming the observed responses are
+  at steady-state.
+* **Rank1PlusSparse** (``scidoggo.linear_model.Rank1PlusSparse``, ``[sparse]``)
+  -- linear model with a rank-one constraint plus an added sparse weight matrix.
+
+Documentation
+=============
+
+The documentation is built with Sphinx, numpydoc and sphinx-gallery::
+
+    pip install "scidoggo[docs]"
+    cd doc
+    make html
 
 Acknowledgments
 ===============
 
-This package was created with the help of the scikit-learn templating tool: https://github.com/scikit-learn-contrib/project-template
+The PLS estimators are forked from scikit-learn. The original package layout
+was bootstrapped from the scikit-learn-contrib project template.
