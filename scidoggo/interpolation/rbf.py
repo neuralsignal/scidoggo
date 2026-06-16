@@ -264,8 +264,13 @@ class RbfRegression(RegressorMixin, BaseEstimator):
             accept_sparse=False,
             multi_output=True,
             order="C",
+            dtype=np.float64,
             y_numeric=True,
         )
+        # ``validate_data``'s ``dtype`` only coerces X; an integer y is left as
+        # int by ``y_numeric``. The pythran kernel is typed for C-contiguous
+        # float arrays, so force both dtype and memory layout here.
+        y = np.ascontiguousarray(y, dtype=np.float64)
 
         if sample_weight is None:
             smoothing = self.smoothing
@@ -460,7 +465,12 @@ class RbfRegression(RegressorMixin, BaseEstimator):
         """
         check_is_fitted(self)
         X = validate_data(
-            self, X, accept_sparse=False, ensure_2d=True, reset=False
+            self,
+            X,
+            accept_sparse=False,
+            ensure_2d=True,
+            dtype=np.float64,
+            reset=False,
         )
 
         n_samples, _ = X.shape
