@@ -6,8 +6,6 @@ with the masked, optionally weighted, mean-squared-error loss
 (:func:`mse_loss`) used during training.
 """
 
-from typing import Optional
-
 import torch
 from torch import nn
 
@@ -65,8 +63,8 @@ def tanh_like(
 def mse_loss(
     input: torch.Tensor,
     target: torch.Tensor,
-    mask: Optional[torch.Tensor] = None,
-    weight: Optional[torch.Tensor] = None,
+    mask: torch.Tensor | None = None,
+    weight: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Mean-squared-error loss with optional masking and weighting.
 
@@ -142,15 +140,9 @@ class TanhLike(nn.Module):
         self.b_dict_obj = ValuesDict(b_dict, length, default=1.0)
 
         factory_kwargs = dict(dtype=dtype, device=device)
-        self._r0 = nn.Parameter(
-            torch.empty(self.r0_dict_obj.n_params, **factory_kwargs)
-        )
-        self._a = nn.Parameter(
-            torch.empty(self.a_dict_obj.n_params, **factory_kwargs)
-        )
-        self._b = nn.Parameter(
-            torch.empty(self.b_dict_obj.n_params, **factory_kwargs)
-        )
+        self._r0 = nn.Parameter(torch.empty(self.r0_dict_obj.n_params, **factory_kwargs))
+        self._a = nn.Parameter(torch.empty(self.a_dict_obj.n_params, **factory_kwargs))
+        self._b = nn.Parameter(torch.empty(self.b_dict_obj.n_params, **factory_kwargs))
 
         self.reset_parameters()
 

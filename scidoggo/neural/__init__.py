@@ -22,8 +22,7 @@ try:
     )
 except ImportError as exc:
     raise MissingDependencyError(
-        'The neural model requires the [neural] extra. '
-        'Install with: pip install "scidoggo[neural]"'
+        'The neural model requires the [neural] extra. Install with: pip install "scidoggo[neural]"'
     ) from exc
 
 __all__ = [

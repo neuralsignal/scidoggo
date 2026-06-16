@@ -13,13 +13,11 @@ The :mod:`sklearn.pls` module implements Partial Least Squares (PLS).
 import numbers
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.linalg import pinv as pinv2
 from scipy.linalg import svd
-
 from sklearn.base import (
     BaseEstimator,
     ClassNamePrefixFeaturesOutMixin,
@@ -76,7 +74,7 @@ def _get_first_singular_vectors_power_method(
     max_iter: int,
     tol: float,
     norm_y_weights: bool,
-) -> Tuple[NDArray[np.floating], NDArray[np.floating], int]:
+) -> tuple[NDArray[np.floating], NDArray[np.floating], int]:
     """Return the first left and right singular vectors of X'Y.
 
     Provides an alternative to the ``svd(X'Y)`` and uses the power method
@@ -134,7 +132,7 @@ def _get_first_singular_vectors_power_method(
         X_pinv, Y_pinv = _pinv2_old(X), _pinv2_old(Y)
 
     i = 0
-    for i in range(max_iter):
+    for i in range(max_iter):  # noqa: B007 - i is read after the loop for n_iter
         if mode == "B":
             x_weights = np.dot(X_pinv, y_score)
         else:
@@ -160,14 +158,18 @@ def _get_first_singular_vectors_power_method(
 
     n_iter = i + 1
     if n_iter == max_iter:
-        warnings.warn("Maximum number of iterations reached", ConvergenceWarning)
+        warnings.warn(
+            "Maximum number of iterations reached",
+            ConvergenceWarning,
+            stacklevel=2,
+        )
 
     return x_weights, y_weights, n_iter
 
 
 def _get_first_singular_vectors_svd(
     X: NDArray[np.floating], Y: NDArray[np.floating]
-) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """Return the first left and right singular vectors of X'Y.
 
     Here the whole SVD is computed.
@@ -195,7 +197,7 @@ def _get_first_singular_vectors_svd(
 
 def _center_scale_xy(
     X: NDArray[np.floating], Y: NDArray[np.floating], scale: bool, demean: bool
-) -> Tuple[
+) -> tuple[
     NDArray[np.floating],
     NDArray[np.floating],
     NDArray[np.floating],
@@ -348,12 +350,8 @@ class _PLS(
             Fitted model.
         """
         check_consistent_length(X, Y)
-        X = validate_data(
-            self, X, dtype=np.float64, copy=self.copy, ensure_min_samples=2
-        )
-        Y = check_array(
-            Y, input_name="Y", dtype=np.float64, copy=self.copy, ensure_2d=False
-        )
+        X = validate_data(self, X, dtype=np.float64, copy=self.copy, ensure_min_samples=2)
+        Y = check_array(Y, input_name="Y", dtype=np.float64, copy=self.copy, ensure_2d=False)
         if Y.ndim == 1:
             Y = Y.reshape(-1, 1)
 
@@ -386,16 +384,14 @@ class _PLS(
             )
 
         if self.algorithm not in ("svd", "nipals"):
-            raise ValueError(
-                f"algorithm should be 'svd' or 'nipals', got {self.algorithm}."
-            )
+            raise ValueError(f"algorithm should be 'svd' or 'nipals', got {self.algorithm}.")
 
         self._norm_y_weights = self.deflation_mode == "canonical"  # 1.1
         norm_y_weights = self._norm_y_weights
 
         # Scale (in place)
-        Xk, Yk, self._x_mean, self._y_mean, self._x_std, self._y_std = (
-            _center_scale_xy(X, Y, self.scale, self.demean)
+        Xk, Yk, self._x_mean, self._y_mean, self._x_std, self._y_std = _center_scale_xy(
+            X, Y, self.scale, self.demean
         )
 
         self.x_weights_ = np.zeros((p, n_components))  # U
@@ -434,7 +430,10 @@ class _PLS(
                 except StopIteration as e:
                     if str(e) != "Y residual is constant":
                         raise
-                    warnings.warn(f"Y residual is constant at iteration {k}")
+                    warnings.warn(
+                        f"Y residual is constant at iteration {k}",
+                        stacklevel=2,
+                    )
                     break
 
                 self.n_iter_.append(n_iter_)
@@ -500,8 +499,8 @@ class _PLS(
     # orthogonalize components and
     # take the kth coefs/rotations
     def decompose_coef(
-        self, k: Optional[int] = None
-    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+        self, k: int | None = None
+    ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
         """Decompose the fitted coefficients into orthogonal components.
 
         The coefficients are decomposed into orthogonal `X` rotations and their
@@ -527,7 +526,7 @@ class _PLS(
         y_loadings_orth = (np.diag(E) @ Vt @ self.y_loadings_.T[:k]).T
         return x_rotations_orth, y_loadings_orth
 
-    def kth_coef(self, k: Optional[int] = None) -> NDArray[np.floating]:
+    def kth_coef(self, k: int | None = None) -> NDArray[np.floating]:
         """Return the linear coefficients using only the first `k` components.
 
         Parameters
@@ -549,8 +548,8 @@ class _PLS(
         return (coef * self._y_std).T
 
     def kth_rotations(
-        self, k: Optional[int] = None
-    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+        self, k: int | None = None
+    ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
         """Return the `X` and `Y` rotations using only the first `k` components.
 
         Parameters
@@ -590,8 +589,8 @@ class _PLS(
     def transform(
         self,
         X: NDArray,
-        Y: Optional[NDArray] = None,
-        k: Optional[int] = None,
+        Y: NDArray | None = None,
+        k: int | None = None,
         copy: bool = True,
     ):
         """Apply the dimension reduction.
@@ -626,9 +625,7 @@ class _PLS(
         # Apply rotation
         x_scores = np.dot(X, x_rotations_)
         if Y is not None:
-            Y = check_array(
-                Y, input_name="Y", ensure_2d=False, copy=copy, dtype=FLOAT_DTYPES
-            )
+            Y = check_array(Y, input_name="Y", ensure_2d=False, copy=copy, dtype=FLOAT_DTYPES)
             if Y.ndim == 1:
                 Y = Y.reshape(-1, 1)
             Y -= self._y_mean
@@ -638,7 +635,7 @@ class _PLS(
 
         return x_scores
 
-    def inverse_transform(self, X: NDArray, Y: Optional[NDArray] = None):
+    def inverse_transform(self, X: NDArray, Y: NDArray | None = None):
         """Transform data back to its original space.
 
         Parameters
@@ -683,9 +680,7 @@ class _PLS(
 
         return X_reconstructed
 
-    def predict(
-        self, X: NDArray, copy: bool = True, k: Optional[int] = None
-    ) -> NDArray[np.floating]:
+    def predict(self, X: NDArray, copy: bool = True, k: int | None = None) -> NDArray[np.floating]:
         """Predict targets of given samples.
 
         Parameters
@@ -720,7 +715,7 @@ class _PLS(
         Ypred = X @ coef.T
         return Ypred + self.intercept_
 
-    def fit_transform(self, X: NDArray, y: Optional[NDArray] = None, k: Optional[int] = None):
+    def fit_transform(self, X: NDArray, y: NDArray | None = None, k: int | None = None):
         """Learn and apply the dimension reduction on the train data.
 
         Parameters
@@ -743,7 +738,7 @@ class _PLS(
             Return `x_scores` if `Y` is not given, `(x_scores, y_scores)`
             otherwise.
         """
-        return self.fit(X, y).transform(X, y, k=k)
+        return self.fit(X, y).transform(X, y, k=k)  # type: ignore[arg-type]
 
     def __sklearn_tags__(self) -> Tags:
         """Return the estimator tags.

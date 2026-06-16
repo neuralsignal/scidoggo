@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from itertools import product
-from numbers import Number
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -11,7 +10,9 @@ from scipy.optimize import least_squares
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
-from sklearn.utils.validation import _check_sample_weight, check_is_fitted, validate_data
+from sklearn.utils.validation import _check_sample_weight, check_is_fitted
+
+from scidoggo._validation import validate_x, validate_xy
 
 
 class SelectivityModel(RegressorMixin, BaseEstimator):
@@ -127,15 +128,16 @@ class SelectivityModel(RegressorMixin, BaseEstimator):
         k: float,
     ) -> NDArray[np.float64]:
         """Compute the model prediction for coefficients ``theta``."""
-        w = theta[self.n_linear_:]
-        w_norm = np.linalg.norm(w)
+        w = theta[self.n_linear_ :]
+        w_norm = float(np.linalg.norm(w))
         if np.isclose(w_norm, 0):
             w_normalized = w
         else:
             w_normalized = w / w_norm
-        y_pred = self._selective_regression(
-            X[:, self.n_linear_:], X_norm, w_normalized, w_norm, a, k
-        ) + X[:, : self.n_linear_] @ theta[: self.n_linear_]
+        y_pred = (
+            self._selective_regression(X[:, self.n_linear_ :], X_norm, w_normalized, w_norm, a, k)
+            + X[:, : self.n_linear_] @ theta[: self.n_linear_]
+        )
         return y_pred
 
     def _residuals(
@@ -154,46 +156,45 @@ class SelectivityModel(RegressorMixin, BaseEstimator):
 
     def _check_and_assign_params(self) -> None:
         """Resolve ``linear_features`` and the alpha/kappa grids into fitted attrs."""
+        self.linear_features_: list[int]
         if self.linear_features is None:
             self.linear_features_ = []
-            self.n_linear_ = 0
+        elif isinstance(self.linear_features, list | tuple | np.ndarray):
+            self.linear_features_ = [int(i) for i in self.linear_features]
         else:
-            self.linear_features_ = (
-                [self.linear_features]
-                if isinstance(self.linear_features, Number)
-                else list(self.linear_features)
-            )
-            self.n_linear_ = len(self.linear_features_)
+            self.linear_features_ = [int(self.linear_features)]
+        self.n_linear_ = len(self.linear_features_)
 
-        self.alphas_ = (
-            np.logspace(-1, 1, 13) if self.alphas is None else np.asarray(self.alphas)
-        )
-        self.kappas_ = (
-            np.logspace(-2, 1, 19) if self.kappas is None else np.asarray(self.kappas)
-        )
+        self.alphas_ = np.logspace(-1, 1, 13) if self.alphas is None else np.asarray(self.alphas)
+        self.kappas_ = np.logspace(-2, 1, 19) if self.kappas is None else np.asarray(self.kappas)
 
-    def _transformX(
-        self, X: NDArray[np.float64], return_nonnormalized: bool = False
-    ):
-        """Split features into linear / nonlinear blocks and normalise the latter."""
+    def _split_features(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Reorder features into the linear block followed by the nonlinear block."""
         idcs = list(range(X.shape[1]))
         idcs = list(set(idcs) - set(self.linear_features_))
         Xlinear = X[:, self.linear_features_]
-        X = X[:, idcs]
-        if return_nonnormalized:
-            return np.hstack([Xlinear, X])
+        Xnonlinear = X[:, idcs]
+        return np.hstack([Xlinear, Xnonlinear])
 
-        xnorm = np.linalg.norm(X, axis=-1, ord=2)
-        X = X.astype(np.float64, copy=True)
-        X[xnorm != 0] /= xnorm[xnorm != 0, None]
-        X[~np.isfinite(X)] = 0
+    def _transformX(
+        self, X: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Split features and L2-normalise the nonlinear block per sample."""
+        idcs = list(range(X.shape[1]))
+        idcs = list(set(idcs) - set(self.linear_features_))
+        Xlinear = X[:, self.linear_features_]
+        Xnonlinear = X[:, idcs]
 
-        X = np.hstack([Xlinear, X])
-        return X, xnorm
+        xnorm = np.linalg.norm(Xnonlinear, axis=-1, ord=2)
+        Xnonlinear = Xnonlinear.astype(np.float64, copy=True)
+        Xnonlinear[xnorm != 0] /= xnorm[xnorm != 0, None]
+        Xnonlinear[~np.isfinite(Xnonlinear)] = 0
+
+        return np.hstack([Xlinear, Xnonlinear]), xnorm
 
     def fit(
         self, X: ArrayLike, y: ArrayLike, sample_weight: ArrayLike | None = None
-    ) -> "SelectivityModel":
+    ) -> SelectivityModel:
         """Fit the selectivity model to ``X`` and ``y``.
 
         Parameters
@@ -212,12 +213,12 @@ class SelectivityModel(RegressorMixin, BaseEstimator):
         self : SelectivityModel
             The fitted estimator.
         """
-        X, y = validate_data(self, X, y, y_numeric=True)
+        X, y = validate_xy(self, X, y, y_numeric=True)
         sample_weight = _check_sample_weight(sample_weight, X)
 
         self._check_and_assign_params()
 
-        X4linear = self._transformX(X, return_nonnormalized=True)
+        X4linear = self._split_features(X)
         lin_model = LinearRegression(fit_intercept=False)
         lin_model.fit(X4linear, y, sample_weight=sample_weight)
         self.lin_model_ = lin_model
@@ -260,6 +261,6 @@ class SelectivityModel(RegressorMixin, BaseEstimator):
             The predicted target values.
         """
         check_is_fitted(self)
-        X = validate_data(self, X, reset=False)
+        X = validate_x(self, X, reset=False)
         X, X_norm = self._transformX(X)
         return self._model(self.coef_, X, X_norm, self.alpha_, self.kappa_)

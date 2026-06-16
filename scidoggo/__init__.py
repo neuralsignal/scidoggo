@@ -10,11 +10,12 @@ when their dependency is absent:
 * ``scidoggo.deep_implicit_circuits`` -- ``pip install "scidoggo[deep]"``
 * ``scidoggo.linear_model.Rank1PlusSparse`` -- ``pip install "scidoggo[sparse]"`` (cvxpy)
 """
-from .cross_decomposition import CCA, PLSCanonical, PLSRegression, PLSSVD
+
+from ._version import __version__
+from .cross_decomposition import CCA, PLSSVD, PLSCanonical, PLSRegression
 from .interpolation import RbfRegression
 from .linear_model import RankConstraint, SelectivityModel, Tikhonov
 from .resampling import bs_cis, draw_bs_replicates, sig_directional, sig_overlap
-from ._version import __version__
 
 __all__ = [
     "PLSRegression",

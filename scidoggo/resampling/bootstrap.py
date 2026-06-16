@@ -5,16 +5,16 @@ These are pure functions: every value is supplied by the caller and there are
 no default arguments.
 """
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import numpy as np
 
 
 def draw_bs_replicates(
     data: np.ndarray,
-    estimator: Union[str, Callable[..., np.ndarray]],
+    estimator: str | Callable[..., np.ndarray],
     nboots: int,
-    axis: Optional[int],
+    axis: int | None,
 ) -> np.ndarray:
     """
     Create bootstrap samples, compute replicates, and return them.
@@ -60,8 +60,9 @@ def draw_bs_replicates(
         bs_replicates = np.empty((nboots,) + tuple(shape))
         length = data.shape[axis]
 
-    if isinstance(estimator, str):
-        estimator = getattr(np, estimator)
+    func: Callable[..., np.ndarray] = (
+        getattr(np, estimator) if isinstance(estimator, str) else estimator
+    )
 
     # Create bootstrap replicates as much as size
     for i in range(nboots):
@@ -69,7 +70,7 @@ def draw_bs_replicates(
         idcs = np.random.randint(0, length, size=length)
         bs_sample = np.take(data, idcs, axis=axis)
         # Get bootstrap replicate and append to bs_replicates
-        bs_replicates[i] = estimator(bs_sample, axis=axis)
+        bs_replicates[i] = func(bs_sample, axis=axis)
 
     return bs_replicates
 
@@ -77,9 +78,9 @@ def draw_bs_replicates(
 def bs_cis(
     data: np.ndarray,
     alpha: float,
-    estimator: Union[str, Callable[..., np.ndarray]],
+    estimator: str | Callable[..., np.ndarray],
     nboots: int,
-    axis: Optional[int],
+    axis: int | None,
 ) -> np.ndarray:
     """
     Compute bootstrap confidence intervals.
@@ -125,9 +126,9 @@ def bs_cis(
 
 def sig_directional(
     data: np.ndarray,
-    axis: Optional[int],
+    axis: int | None,
     alpha: float,
-    estimator: Union[str, Callable[..., np.ndarray]],
+    estimator: str | Callable[..., np.ndarray],
     nboots: int,
 ) -> np.ndarray:
     """
@@ -172,9 +173,9 @@ def sig_overlap(
     data1: np.ndarray,
     data2: np.ndarray,
     alpha: float,
-    estimator: Union[str, Callable[..., np.ndarray]],
+    estimator: str | Callable[..., np.ndarray],
     nboots: int,
-    axis: Optional[int],
+    axis: int | None,
 ) -> np.ndarray:
     """
     Determine if two sets of bootstrapped confidence intervals overlap.

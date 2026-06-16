@@ -9,22 +9,21 @@ Requires the optional ``[sparse]`` extra (``cvxpy``).
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from sklearn.base import MultiOutputMixin, RegressorMixin
 from sklearn.linear_model._base import LinearModel
-from sklearn.utils.validation import check_X_y
 
+from scidoggo._validation import check_xy
 from scidoggo.exceptions import ConvergenceError, MissingDependencyError
 
 try:
     import cvxpy as cp
 except ImportError as exc:  # pragma: no cover - exercised only without cvxpy
     raise MissingDependencyError(
-        'Rank1PlusSparse requires the [sparse] extra. '
-        'Install with: pip install "scidoggo[sparse]"'
+        'Rank1PlusSparse requires the [sparse] extra. Install with: pip install "scidoggo[sparse]"'
     ) from exc
 
 
@@ -106,14 +105,14 @@ class Rank1PlusSparse(MultiOutputMixin, RegressorMixin, LinearModel):
         *,
         normalize_w1: bool = True,
         normalize_w2: bool = False,
-        S_mask: Optional[npt.ArrayLike] = None,
-        w1_sign: Optional[int] = None,
-        w2_sign: Optional[int] = None,
-        S_sign: Optional[int] = None,
+        S_mask: npt.ArrayLike | None = None,
+        w1_sign: int | None = None,
+        w2_sign: int | None = None,
+        S_sign: int | None = None,
         atol: float = 1e-8,
         rtol: float = 1e-5,
         max_iter: int = 1000,
-        cp_kwargs: Optional[dict[str, Any]] = None,
+        cp_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self.normalize_w1 = normalize_w1
         self.normalize_w2 = normalize_w2
@@ -131,7 +130,7 @@ class Rank1PlusSparse(MultiOutputMixin, RegressorMixin, LinearModel):
         tags.target_tags.multi_output = True
         return tags
 
-    def fit(self, X: npt.ArrayLike, y: npt.ArrayLike) -> "Rank1PlusSparse":
+    def fit(self, X: npt.ArrayLike, y: npt.ArrayLike) -> Rank1PlusSparse:
         """Fit the model.
 
         Parameters
@@ -152,7 +151,7 @@ class Rank1PlusSparse(MultiOutputMixin, RegressorMixin, LinearModel):
             If the alternating minimisation does not converge within
             ``max_iter`` iterations.
         """
-        X, y = check_X_y(
+        X, y = check_xy(
             X,
             y,
             accept_sparse=False,
@@ -186,9 +185,7 @@ class Rank1PlusSparse(MultiOutputMixin, RegressorMixin, LinearModel):
         else:
             S = np.asarray(self.S_mask).astype(float)
             if S.shape != (n, m):
-                raise ValueError(
-                    f"S_mask has shape {S.shape}, expected {(n, m)}."
-                )
+                raise ValueError(f"S_mask has shape {S.shape}, expected {(n, m)}.")
             S_ = cp.Variable(S.shape, name="S", pos=(self.S_sign is not None))
             S_ = cp.multiply(S_, S_sign)
             constraints.append(S_[S == 0] == 0)
@@ -231,10 +228,8 @@ class Rank1PlusSparse(MultiOutputMixin, RegressorMixin, LinearModel):
                 ypred = X @ W
                 loss[i] = 0.5 * np.sum(np.square(y - ypred))
 
-            if i > 0 and np.isclose(
-                loss[i - 1], loss[i], atol=self.atol, rtol=self.rtol
-            ):
-                loss[i + 1:] = loss[i]
+            if i > 0 and np.isclose(loss[i - 1], loss[i], atol=self.atol, rtol=self.rtol):
+                loss[i + 1 :] = loss[i]
                 if self.S_mask is not None:
                     S_ = S_.value
                 converged = True

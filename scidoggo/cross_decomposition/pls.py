@@ -8,12 +8,10 @@ centering (``demean``) of the datasets.
 # License: BSD 3 clause
 
 import numbers
-from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.linalg import svd
-
 from sklearn.base import (
     BaseEstimator,
     ClassNamePrefixFeaturesOutMixin,
@@ -537,12 +535,8 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
             Fitted estimator.
         """
         check_consistent_length(X, Y)
-        X = validate_data(
-            self, X, dtype=np.float64, copy=self.copy, ensure_min_samples=2
-        )
-        Y = check_array(
-            Y, input_name="Y", dtype=np.float64, copy=self.copy, ensure_2d=False
-        )
+        X = validate_data(self, X, dtype=np.float64, copy=self.copy, ensure_min_samples=2)
+        Y = check_array(Y, input_name="Y", dtype=np.float64, copy=self.copy, ensure_2d=False)
         if Y.ndim == 1:
             Y = Y.reshape(-1, 1)
 
@@ -559,8 +553,8 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
             max_val=rank_upper_bound,
         )
 
-        X, Y, self._x_mean, self._y_mean, self._x_std, self._y_std = (
-            _center_scale_xy(X, Y, self.scale, self.demean)
+        X, Y, self._x_mean, self._y_mean, self._x_std, self._y_std = _center_scale_xy(
+            X, Y, self.scale, self.demean
         )
 
         # Compute SVD of cross-covariance matrix
@@ -576,7 +570,7 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
         self._n_features_out = self.x_weights_.shape[1]
         return self
 
-    def transform(self, X: NDArray, Y: Optional[NDArray] = None):
+    def transform(self, X: NDArray, Y: NDArray | None = None):
         """Apply the dimensionality reduction.
 
         Parameters
@@ -607,7 +601,7 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
             return x_scores, y_scores
         return x_scores
 
-    def fit_transform(self, X: NDArray, y: Optional[NDArray] = None):
+    def fit_transform(self, X: NDArray, y: NDArray | None = None):
         """Learn and apply the dimensionality reduction.
 
         Parameters
@@ -625,4 +619,4 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
             The transformed data `X_tranformed` if `Y is not None`,
             `(X_transformed, Y_transformed)` otherwise.
         """
-        return self.fit(X, y).transform(X, y)
+        return self.fit(X, y).transform(X, y)  # type: ignore[arg-type]

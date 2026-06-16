@@ -77,9 +77,7 @@ def test_decompose_coef_orthogonal_and_reconstructs(xy):
     assert y_load_orth.shape == (Y.shape[1], k)
 
     # the X rotations are orthonormal
-    np.testing.assert_allclose(
-        x_rot_orth.T @ x_rot_orth, np.eye(k), atol=1e-8
-    )
+    np.testing.assert_allclose(x_rot_orth.T @ x_rot_orth, np.eye(k), atol=1e-8)
 
     # round trip: (x_rot_orth @ y_load_orth.T) * y_std == kth_coef(k).T
     recon = (x_rot_orth @ y_load_orth.T) * pls._y_std

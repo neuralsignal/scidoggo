@@ -3,6 +3,7 @@
 ``Rank1PlusSparse`` requires the optional ``[sparse]`` extra (cvxpy) and is
 exposed lazily so importing this subpackage never pulls in cvxpy.
 """
+
 from typing import Any
 
 from .rank_constrained import RankConstraint

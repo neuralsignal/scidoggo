@@ -11,7 +11,7 @@ its heavy third-party dependencies (``torch`` and ``skorch``) directly at module
 top. Import errors are surfaced with an install hint by ``scidoggo.neural``.
 """
 
-from typing import Any, Optional, Type
+from typing import Any
 
 import numpy as np
 import skorch
@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 
-NONLINS: dict[str, Type[nn.Module]] = {
+NONLINS: dict[str, type[nn.Module]] = {
     "tanh": nn.Tanh,
     "identity": nn.Identity,
     "relu": nn.ReLU,
@@ -69,9 +69,7 @@ def optimal_input_scaling(
     """
     # TODO efficiency?
     if not mask_zero:
-        linear_model = LinearRegression(
-            fit_intercept=False, copy_X=False, positive=nonneg
-        )
+        linear_model = LinearRegression(fit_intercept=False, copy_X=False, positive=nonneg)
         return linear_model.fit(X, Y).coef_.T
 
     W = np.zeros((X.shape[1], Y.shape[1]))
@@ -92,8 +90,8 @@ def optimal_input_scaling(
 def scale_threshold_function(
     ypred: np.ndarray,
     a: float,
-    ymin: Optional[float],
-    ymax: Optional[float],
+    ymin: float | None,
+    ymax: float | None,
 ) -> np.ndarray:
     """Scale predictions by ``a`` and clip them to a scaled range.
 
@@ -384,9 +382,9 @@ class TwoLayerNoBias(nn.Module):
         n_hidden: int = 1,
         nonlin: str = "relu",
         output_nonlin: str = "identity",
-        linear_weights: Optional[np.ndarray] = None,
+        linear_weights: np.ndarray | None = None,
         linear_init: bool = False,
-        output_weights: Optional[np.ndarray] = None,
+        output_weights: np.ndarray | None = None,
         output_init: bool = False,
         linear_norm: bool = False,
         output_norm: bool = False,
@@ -411,7 +409,7 @@ class TwoLayerNoBias(nn.Module):
     @staticmethod
     def _modify_weights(
         param: nn.Parameter,
-        weights: Optional[np.ndarray],
+        weights: np.ndarray | None,
         grad: bool,
     ) -> None:
         """Optionally overwrite a parameter's data and gradient requirement.
@@ -457,18 +455,18 @@ class TwoLayerNoBias(nn.Module):
 
 
 def create_model(
-    module: Type[nn.Module] = TwoLayerNoBias,
+    module: type[nn.Module] = TwoLayerNoBias,
     lr: float = 0.001,
-    criterion: Type[nn.Module] = ScaledMSE,
+    criterion: type[nn.Module] = ScaledMSE,
     criterion__nonneg: bool = True,
     criterion__reduction: str = "sum",
     criterion__mask_zero: bool = True,
     optimizer__momentum: float = 0.95,
     max_epochs: int = 1000,
     batch_size: int = 50,
-    predict_nonlinearity: Optional[Any] = None,
+    predict_nonlinearity: Any | None = None,
     module__nonlin: str = "relu",
-    train_split: Optional[Any] = None,
+    train_split: Any | None = None,
     verbose: bool = True,
     module__n_in: int = 4,
     module__n_out: int = 1,

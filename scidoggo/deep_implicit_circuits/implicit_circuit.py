@@ -9,17 +9,16 @@ Sparse parameterizations live in :mod:`.weight_dict` and the nonlinearities /
 losses live in :mod:`.losses`.
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import numpy as np
 import torch
 import torch.autograd as autograd
+from pytorch_lightning import LightningModule, Trainer
 from torch import nn
-from torch.optim import Adam, AdamW, SGD
+from torch.optim import SGD, Adam, AdamW
 from torch.utils.data import DataLoader, TensorDataset
 from torcheval.metrics.functional import r2_score
-
-from pytorch_lightning import LightningModule, Trainer
 
 from .losses import mse_loss
 from .weight_dict import (
@@ -127,7 +126,7 @@ class Circuit(nn.Module):
         normalize_weights: bool = True,
         device=None,
         dtype=None,
-        anderson_kwargs: Optional[dict] = None,
+        anderson_kwargs: dict | None = None,
     ):
         super().__init__()
         self.normalize_weights = normalize_weights
@@ -151,21 +150,13 @@ class Circuit(nn.Module):
 
         # parameter objects
         factory_kwargs = dict(dtype=dtype, device=device)
-        self._wi = nn.Parameter(
-            torch.empty(self.winp_dict_obj.n_params, **factory_kwargs)
-        )
-        self._wr = nn.Parameter(
-            torch.empty(self.wrec_dict_obj.n_params, **factory_kwargs)
-        )
-        self._gain = nn.Parameter(
-            torch.empty(self.gain_dict_obj.n_params, **factory_kwargs)
-        )
+        self._wi = nn.Parameter(torch.empty(self.winp_dict_obj.n_params, **factory_kwargs))
+        self._wr = nn.Parameter(torch.empty(self.wrec_dict_obj.n_params, **factory_kwargs))
+        self._gain = nn.Parameter(torch.empty(self.gain_dict_obj.n_params, **factory_kwargs))
         self._output_gain = nn.Parameter(
             torch.empty(self.output_gain_dict_obj.n_params, **factory_kwargs)
         )
-        self._offset = nn.Parameter(
-            torch.empty(self.offset_dict_obj.n_params, **factory_kwargs)
-        )
+        self._offset = nn.Parameter(torch.empty(self.offset_dict_obj.n_params, **factory_kwargs))
 
         self.reset_parameters()
 
@@ -238,9 +229,9 @@ class Circuit(nn.Module):
     def forward(
         self,
         X: torch.Tensor,
-        Y: Optional[torch.Tensor] = None,
-        silence_inputs: Optional[list] = None,
-        silence_recs: Optional[list] = None,
+        Y: torch.Tensor | None = None,
+        silence_inputs: list | None = None,
+        silence_recs: list | None = None,
     ) -> torch.Tensor:
         """Solve the circuit to its fixed point for the given inputs.
 
@@ -470,7 +461,7 @@ class LitModel(LightningModule):
         loss: Callable = mse_loss,
         learning_rate: float = 1e-3,
         optimizer_type: str = "adamw",
-        opt_args: Optional[dict] = None,
+        opt_args: dict | None = None,
         schedule: str = "linear",
         warmup_steps: int = 0,
         total_steps: int = 1000,
@@ -644,9 +635,7 @@ if __name__ == "__main__":
         (4, 5): (-1, 1),
         (5, 4): (-1, 1),
     }
-    model_kwargs = dict(
-        n_neurons=l, n_inputs=m, winp_dict=winp_dict, wrec_dict=wrec_dict
-    )
+    model_kwargs = dict(n_neurons=l, n_inputs=m, winp_dict=winp_dict, wrec_dict=wrec_dict)
 
     model = LitModel(model_kwargs=model_kwargs, learning_rate=5e-2)
 

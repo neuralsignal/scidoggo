@@ -89,9 +89,7 @@ def analytic_tikhonov(
     )
 
 
-def find_tikhonov_from_covariance(
-    x: np.ndarray, cutoff: float, eps: float
-) -> np.ndarray:
+def find_tikhonov_from_covariance(x: np.ndarray, cutoff: float, eps: float) -> np.ndarray:
     """Use truncated SVD to find a Tikhonov matrix.
 
     Parameters
@@ -117,9 +115,7 @@ def find_tikhonov_from_covariance(
         If ``x`` is not symmetric (and therefore not a covariance matrix).
     """
     if not np.allclose(x.T, x):
-        raise ValueError(
-            "Input matrix is not symmetric. Are you sure it is covariance?"
-        )
+        raise ValueError("Input matrix is not symmetric. Are you sure it is covariance?")
     _, s, vt = np.linalg.svd(x)
     return np.dot(np.diag(1 / np.sqrt(s[s > cutoff])), vt[s > cutoff])
 
@@ -168,13 +164,11 @@ def _standardize_params(
     else:
         ho, hq, to = _qr(np.dot(x, ko))
     if hq.shape == ():  # special case where L is square (saves time later)
-        ko, to, ho = None, None, None
+        ko, to, ho = None, None, None  # type: ignore[assignment]
     return hq, kp, rp, ko, ho, to
 
 
-def to_standard_form(
-    x: np.ndarray, y: np.ndarray, L: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+def to_standard_form(x: np.ndarray, y: np.ndarray, L: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Convert ``x`` and ``y`` into standard form.
 
     This efficiently sets up the Tikhonov regression problem so that ordinary
@@ -205,9 +199,7 @@ def to_standard_form(
     return x_new, y_new
 
 
-def to_general_form(
-    b: np.ndarray, x: np.ndarray, y: np.ndarray, L: np.ndarray
-) -> np.ndarray:
+def to_general_form(b: np.ndarray, x: np.ndarray, y: np.ndarray, L: np.ndarray) -> np.ndarray:
     """Convert weights back into general form space.
 
     Parameters
@@ -235,14 +227,14 @@ def to_general_form(
         L_inv = np.dot(kp, np.linalg.pinv(rp.T))
         return np.dot(L_inv, b)
     L_inv = np.dot(kp, np.linalg.pinv(rp.T))
-    kth = np.dot(ko, np.dot(np.linalg.pinv(to), ho.T))
+    # In this branch ko/to/ho are guaranteed to be arrays (the all-None case
+    # returned above), but their declared type is Optional.
+    kth = np.dot(ko, np.dot(np.linalg.pinv(to), ho.T))  # type: ignore[union-attr, arg-type]
     resid = y - np.dot(x, np.dot(L_inv, b))
     return np.dot(L_inv, b) + np.dot(kth, resid)
 
 
-def fit_learner(
-    x: np.ndarray, y: np.ndarray, L: np.ndarray, ridge: Ridge | None
-) -> Ridge:
+def fit_learner(x: np.ndarray, y: np.ndarray, L: np.ndarray, ridge: Ridge | None) -> Ridge:
     """Return a trained ridge model fit optimally in standard form.
 
     The returned model behaves exactly like :class:`~sklearn.linear_model.Ridge`

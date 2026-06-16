@@ -5,22 +5,19 @@ Nln chromatic encoding model
 import pyro.distributions as dist
 
 from ..chromatic import (
-    ChromaticEncodingModel, NoiseThresholdedPrAdaptation,
-    FlyStavenga1993SensitivityModel, 
-    FlyStavenga1993InnerSensitivityModel
+    ChromaticEncodingModel,
+    FlyStavenga1993InnerSensitivityModel,
+    FlyStavenga1993SensitivityModel,
+    NoiseThresholdedPrAdaptation,
 )
-from ..lnl import LnlModel
-from ..weights import WeightFunc
 from ..gaussian import GaussianObsEncodingModel
+from ..lnl import LnlModel
 from ..pyro_components import identity
+from ..weights import WeightFunc
 
 
 def construct_nln_chromatic(
-    wls,  
-    connectivity, 
-    nonlin=identity,
-    weight_prior=dist.Normal(0, 1),
-    data_normalize='l1-norm'
+    wls, connectivity, nonlin=identity, weight_prior=dist.Normal(0, 1), data_normalize="l1-norm"
 ):
     """
     connectivity : (pre x post)
@@ -36,10 +33,5 @@ def construct_nln_chromatic(
     else:
         s_func = FlyStavenga1993SensitivityModel(wls)
 
-    model = ChromaticEncodingModel(
-        wls, 
-        s_func, 
-        e_model, 
-        p_func=p_func
-    )
+    model = ChromaticEncodingModel(wls, s_func, e_model, p_func=p_func)
     return model

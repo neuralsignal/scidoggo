@@ -9,7 +9,7 @@ def thin_plate_spline(r):
     if r == 0:
         return 0.0
     else:
-        return r**2*np.log(r)
+        return r**2 * np.log(r)
 
 
 def cubic(r):
@@ -17,7 +17,7 @@ def cubic(r):
 
 
 def quintic(r):
-    return -r**5
+    return -(r**5)
 
 
 def multiquadric(r):
@@ -25,27 +25,27 @@ def multiquadric(r):
 
 
 def inverse_multiquadric(r):
-    return 1/np.sqrt(r**2 + 1)
+    return 1 / np.sqrt(r**2 + 1)
 
 
 def inverse_quadratic(r):
-    return 1/(r**2 + 1)
+    return 1 / (r**2 + 1)
 
 
 def gaussian(r):
-    return np.exp(-r**2)
+    return np.exp(-(r**2))
 
 
 NAME_TO_FUNC = {
-   "linear": linear,
-   "thin_plate_spline": thin_plate_spline,
-   "cubic": cubic,
-   "quintic": quintic,
-   "multiquadric": multiquadric,
-   "inverse_multiquadric": inverse_multiquadric,
-   "inverse_quadratic": inverse_quadratic,
-   "gaussian": gaussian
-   }
+    "linear": linear,
+    "thin_plate_spline": thin_plate_spline,
+    "cubic": cubic,
+    "quintic": quintic,
+    "multiquadric": multiquadric,
+    "inverse_multiquadric": inverse_multiquadric,
+    "inverse_quadratic": inverse_quadratic,
+    "gaussian": gaussian,
+}
 
 
 def kernel_vector(x, y, kernel_func, out):
@@ -57,13 +57,13 @@ def kernel_vector(x, y, kernel_func, out):
 def polynomial_vector(x, powers, out):
     """Evaluate monomials, with exponents from `powers`, at the point `x`."""
     for i in range(powers.shape[0]):
-        out[i] = np.prod(x**powers[i])
+        out[i] = np.prod(x ** powers[i])
 
 
 def kernel_matrix(x, kernel_func, out):
     """Evaluate RBFs, with centers at `x`, at `x`."""
     for i in range(x.shape[0]):
-        for j in range(i+1):
+        for j in range(i + 1):
             out[i, j] = kernel_func(np.linalg.norm(x[i] - x[j]))
             out[j, i] = out[i, j]
 
@@ -72,7 +72,7 @@ def polynomial_matrix(x, powers, out):
     """Evaluate monomials, with exponents from `powers`, at `x`."""
     for i in range(x.shape[0]):
         for j in range(powers.shape[0]):
-            out[i, j] = np.prod(x[i]**powers[j])
+            out[i, j] = np.prod(x[i] ** powers[j])
 
 
 # pythran export _kernel_matrix(float[:, :], str)
@@ -138,13 +138,13 @@ def _build_system(y, d, smoothing, kernel, epsilon, powers, normalize):
     if normalize == "scale":
         mins = np.min(y, axis=0)
         maxs = np.max(y, axis=0)
-        shift = (maxs + mins)/2
-        scale = (maxs - mins)/2
+        shift = (maxs + mins) / 2
+        scale = (maxs - mins) / 2
     elif normalize == "zero":
         maxs = np.max(np.abs(y), axis=0)
         mins = -maxs
-        shift = (maxs + mins)/2
-        scale = (maxs - mins)/2
+        shift = (maxs + mins) / 2
+        scale = (maxs - mins) / 2
     else:
         shift = np.zeros(y.shape[1])
         scale = np.ones(y.shape[1])
@@ -153,8 +153,8 @@ def _build_system(y, d, smoothing, kernel, epsilon, powers, normalize):
     # zeros with ones.
     scale[scale == 0.0] = 1.0
 
-    yeps = y*epsilon
-    yhat = (y - shift)/scale
+    yeps = y * epsilon
+    yhat = (y - shift) / scale
 
     # Transpose to make the array fortran contiguous. This is required for
     # dgesv to not make a copy of lhs.
@@ -181,8 +181,7 @@ def _build_system(y, d, smoothing, kernel, epsilon, powers, normalize):
 #                          int[:, :],
 #                          float[:],
 #                          float[:])
-def _build_evaluation_coefficients(x, y, kernel, epsilon, powers,
-                                   shift, scale):
+def _build_evaluation_coefficients(x, y, kernel, epsilon, powers, shift, scale):
     """Construct the coefficients needed to evaluate
     the RBF.
 
@@ -213,9 +212,9 @@ def _build_evaluation_coefficients(x, y, kernel, epsilon, powers,
     r = powers.shape[0]
     kernel_func = NAME_TO_FUNC[kernel]
 
-    yeps = y*epsilon
-    xeps = x*epsilon
-    xhat = (x - shift)/scale
+    yeps = y * epsilon
+    xeps = x * epsilon
+    xhat = (x - shift) / scale
 
     vec = np.empty((q, p + r), dtype=float)
     for i in range(q):

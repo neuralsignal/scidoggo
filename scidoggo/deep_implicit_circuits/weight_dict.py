@@ -12,7 +12,6 @@ values are either a fixed :class:`numbers.Number` or a ``(lower, upper)`` /
 """
 
 from numbers import Number
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -29,7 +28,7 @@ __all__ = [
 
 
 def matrix_to_weightdict(
-    W: Union[np.ndarray, torch.Tensor, pd.DataFrame, list[list]],
+    W: np.ndarray | torch.Tensor | pd.DataFrame | list[list],
 ) -> dict[tuple[int, int], float]:
     """Convert a dense 2-D weight matrix into the sparse weight-dict format.
 
@@ -57,7 +56,7 @@ def matrix_to_weightdict(
 
 
 def values_to_dict(
-    values: Union[np.ndarray, torch.Tensor, pd.Series, list],
+    values: np.ndarray | torch.Tensor | pd.Series | list,
 ) -> dict[int, float]:
     """Convert a dense 1-D vector into the sparse values-dict format.
 
@@ -181,9 +180,7 @@ class WeightDict:
         """
         weights = torch.zeros(self.shape).to(w)
         if len(self.fixed_idcs):
-            weights[self.fixed_idcs, self.fixed_jdcs] = torch.tensor(
-                self.fixed_value
-            ).to(w)
+            weights[self.fixed_idcs, self.fixed_jdcs] = torch.tensor(self.fixed_value).to(w)
         if len(self.idcs):
             weights[self.idcs, self.jdcs] = w[self.vidcs]
         return weights

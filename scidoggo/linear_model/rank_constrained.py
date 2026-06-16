@@ -8,7 +8,9 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, MultiOutputMixin, RegressorMixin
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import check_is_fitted
+
+from scidoggo._validation import validate_x, validate_xy
 
 
 class RankConstraint(RegressorMixin, MultiOutputMixin, BaseEstimator):
@@ -86,7 +88,7 @@ class RankConstraint(RegressorMixin, MultiOutputMixin, BaseEstimator):
         y_pred = X @ (G @ H.T)
         return float(LA.norm(y_pred - y))
 
-    def fit(self, X: ArrayLike, y: ArrayLike) -> "RankConstraint":
+    def fit(self, X: ArrayLike, y: ArrayLike) -> RankConstraint:
         """Fit the rank-constrained regressor to ``X`` and ``y``.
 
         Parameters
@@ -102,7 +104,7 @@ class RankConstraint(RegressorMixin, MultiOutputMixin, BaseEstimator):
         self : RankConstraint
             The fitted estimator.
         """
-        X, y = validate_data(self, X, y, multi_output=True, y_numeric=True)
+        X, y = validate_xy(self, X, y, multi_output=True, y_numeric=True)
         single_output = y.ndim == 1
         Y = y.reshape(-1, 1) if single_output else y
 
@@ -155,7 +157,7 @@ class RankConstraint(RegressorMixin, MultiOutputMixin, BaseEstimator):
             Predicted values.
         """
         check_is_fitted(self)
-        X = validate_data(self, X, reset=False)
+        X = validate_x(self, X, reset=False)
         y_pred = X @ (self.G_ @ self.H_.T)
         if self.coef_.ndim == 1:
             return y_pred.ravel()

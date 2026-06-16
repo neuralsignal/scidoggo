@@ -8,10 +8,12 @@ Modified from Jeff Chiang's code <jeff.njchiang@gmail.com>.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from sklearn.linear_model import Ridge
-from sklearn.utils.validation import validate_data
 
+from scidoggo._validation import validate_xy
 from scidoggo.exceptions import InvalidParameterError
 
 from .tikhonov_solver import to_general_form, to_standard_form
@@ -67,6 +69,8 @@ class Tikhonov(Ridge):
         ``fit_intercept=False``.
     """
 
+    coef_: np.ndarray
+
     def __init__(
         self,
         alpha: float = 1.0,
@@ -92,9 +96,7 @@ class Tikhonov(Ridge):
         )
         self.L = L
 
-    def fit(
-        self, X: np.ndarray, y: np.ndarray, sample_weight=None
-    ) -> "Tikhonov":
+    def fit(self, X: np.ndarray, y: np.ndarray, sample_weight=None) -> Tikhonov:
         """Fit the Tikhonov regression model.
 
         Parameters
@@ -118,17 +120,16 @@ class Tikhonov(Ridge):
             If ``fit_intercept`` is ``True``, which is not yet supported.
         """
         if self.fit_intercept:
-            raise InvalidParameterError(
-                "fit_intercept=True is not yet implemented for Tikhonov."
-            )
+            raise InvalidParameterError("fit_intercept=True is not yet implemented for Tikhonov.")
 
         # Choose dtype based on the solver: SGD-based solvers require float64.
+        dtype: Any
         if self.solver in ("sag", "saga"):
             dtype = np.float64
         else:
             dtype = [np.float64, np.float32]
 
-        X, y = validate_data(
+        X, y = validate_xy(
             self,
             X,
             y,

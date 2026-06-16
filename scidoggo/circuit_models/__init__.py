@@ -17,72 +17,72 @@ prevent the rest of the circuit models from importing.
 from ..exceptions import MissingDependencyError
 
 try:
-    from .pyro_components import (
-        Tanh,
-        TanhLike,
-        HillEquation,
-        Scalar,
-        DirichletAdaptationPrior,
-        FlyAdaptationPrior,
-    )
-    from .deep import ANN, MonotonicNonlinearity
-    from .weights import (
-        WeightFunc,
-        FixedWeightFunc,
-        FuncWeight,
-        MonotonicWeight,
-        InnerCircuitWeight,
-    )
-    from .gaussian import (
-        FixedPriorModel,
-        FixedScalePriorModel,
-        UninformativePriorModel,
-        FixedValueModel,
-        SampleGaussianModel,
-        FixedGaussianModel,
-        GaussianObsModel,
-        GaussianObsEncodingModel,
-    )
-    from .lnl import (
-        LnlModel,
-        DeepLnlModel,
-        FuncLnlModel,
-        SimpleLnlModel,
-        GaussianObsLnlModel,
-        GaussianObsFuncLnlModel,
-        GaussianObsDeepLnlModel,
-    )
     from .chromatic import (
+        ChromaticEncodingModel,
+        MeasurementConversion,
+        NoiseThresholdedPrAdaptation,
+        PhotoreceptorAdaptation,
+        SpectralSensitivityModel,
+        Stavenga1993SensitivityModel,
         calc_capture,
         calc_log_excitation,
-        PhotoreceptorAdaptation,
-        NoiseThresholdedPrAdaptation,
-        ChromaticEncodingModel,
-        Stavenga1993SensitivityModel,
-        SpectralSensitivityModel,
-        MeasurementConversion,
     )
     from .chromatic_priors import (
-        FlyStavenga1993SensitivityModel,
-        FlyStavenga1993InnerSensitivityModel,
         FixedSensitivity,
+        FlyStavenga1993InnerSensitivityModel,
+        FlyStavenga1993SensitivityModel,
+        InterpolateSumMeasurement,
         StrongNormalSensitivityPrior,
         WeakNormalSensitivityPrior,
-        InterpolateSumMeasurement,
     )
     from .circuit import (
-        ConductanceBasedIntegration,
         CircuitModel,
-        StandardDynamicCircuitModel,
+        ConductanceBasedIntegration,
         ObservedInputDynamicCircuitModel,
+        StandardDynamicCircuitModel,
         UnobservedInputDynamicCircuitModel,
     )
     from .circuit_observation import ObservationModel
-    from .inference import fit_model, summary, predict_model
+    from .deep import ANN, MonotonicNonlinearity
+    from .gaussian import (
+        FixedGaussianModel,
+        FixedPriorModel,
+        FixedScalePriorModel,
+        FixedValueModel,
+        GaussianObsEncodingModel,
+        GaussianObsModel,
+        SampleGaussianModel,
+        UninformativePriorModel,
+    )
+    from .inference import fit_model, predict_model, summary
+    from .lnl import (
+        DeepLnlModel,
+        FuncLnlModel,
+        GaussianObsDeepLnlModel,
+        GaussianObsFuncLnlModel,
+        GaussianObsLnlModel,
+        LnlModel,
+        SimpleLnlModel,
+    )
     from .model_constructors import construct_nln_chromatic
+    from .pyro_components import (
+        DirichletAdaptationPrior,
+        FlyAdaptationPrior,
+        HillEquation,
+        Scalar,
+        Tanh,
+        TanhLike,
+    )
+    from .weights import (
+        FixedWeightFunc,
+        FuncWeight,
+        InnerCircuitWeight,
+        MonotonicWeight,
+        WeightFunc,
+    )
 except ImportError as exc:
     raise MissingDependencyError(
-        'circuit_models requires the [circuits] extra. '
+        "circuit_models requires the [circuits] extra. "
         'Install with: pip install "scidoggo[circuits]"'
     ) from exc
 

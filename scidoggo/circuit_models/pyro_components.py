@@ -3,10 +3,9 @@ Pyro utility modules
 """
 
 import numpy as np
+import pyro.distributions as dist
 import torch
 from pyro.nn import PyroModule, PyroSample
-import pyro.distributions as dist
-
 
 FLOAT_TYPE = torch.float32
 
@@ -53,7 +52,7 @@ class Tanh(PyroModule):
         r0=PyroSample(dist.Normal(0, 0.2)),
         a=PyroSample(dist.LogNormal(0, 0.5)),
         b=PyroSample(dist.LogNormal(0, 0.5)),
-        bias=0
+        bias=0,
     ):
         super().__init__()
         self.r0 = r0
@@ -97,7 +96,7 @@ class TanhLike(PyroModule):
         r0=PyroSample(dist.Normal(0, 0.2)),
         a=PyroSample(dist.LogNormal(0, 0.5)),
         b=PyroSample(dist.LogNormal(0, 0.5)),
-        bias=0
+        bias=0,
     ):
         super().__init__()
         self.r0 = r0
@@ -125,13 +124,12 @@ class TanhLike(PyroModule):
 
 
 class HillEquation(PyroModule):
-
     def __init__(
-        self, 
-        ka=PyroSample(dist.LogNormal(0, 1)), 
-        n=1, 
-        amax=1, 
-        offset=0, 
+        self,
+        ka=PyroSample(dist.LogNormal(0, 1)),
+        n=1,
+        amax=1,
+        offset=0,
     ):
         super().__init__()
         self.ka = ka
@@ -140,19 +138,17 @@ class HillEquation(PyroModule):
         self.offset = offset
 
     def forward(self, x):
-        y = 1 / (1 + (self.ka / x)**self.n)
+        y = 1 / (1 + (self.ka / x) ** self.n)
         y = self.amax * (y + self.offset)
         return y
+
 
 class Scalar(PyroModule):
     """
     Scaling function
     """
 
-    def __init__(
-        self,
-        a=PyroSample(dist.LogNormal(0, 1.0))
-    ):
+    def __init__(self, a=PyroSample(dist.LogNormal(0, 1.0))):
         super().__init__()
         self.a = a
 
@@ -164,36 +160,32 @@ def get_ommatidia_separation(z=1e-4):
     """
     Separation Matrix of pale and yellow opsins
     """
-    return torch.tensor([
-        [1, 1, 1, 1, 1],  # rh1
-        [1, 1, z, 1, z],  # rh3
-        [1, z, 1, z, 1],  # rh4
-        [1, 1, z, 1, z],  # rh5
-        [1, z, 1, z, 1]  # rh6
-    ], dtype=FLOAT_TYPE)
+    return torch.tensor(
+        [
+            [1, 1, 1, 1, 1],  # rh1
+            [1, 1, z, 1, z],  # rh3
+            [1, z, 1, z, 1],  # rh4
+            [1, 1, z, 1, z],  # rh5
+            [1, z, 1, z, 1],  # rh6
+        ],
+        dtype=FLOAT_TYPE,
+    )
 
 
 def get_pr_signs():
-    return torch.tensor([
-        [-1, -1, -1, -1],
-        [1, -1, -1, -1],
-        [-1, 1, -1, -1],
-        [-1, -1, 1, -1],
-        [-1, -1, -1, 1]
-    ], dtype=FLOAT_TYPE)
+    return torch.tensor(
+        [[-1, -1, -1, -1], [1, -1, -1, -1], [-1, 1, -1, -1], [-1, -1, 1, -1], [-1, -1, -1, 1]],
+        dtype=FLOAT_TYPE,
+    )
 
 
-def get_dirichlet_adaptation_prior(certainty=1000., off=1e-3, z=1e-4):
+def get_dirichlet_adaptation_prior(certainty=1000.0, off=1e-3, z=1e-4):
     """
     Get Dirichlet Adaptation prior
     """
     eye = torch.eye(5, dtype=FLOAT_TYPE)
     eye[eye == 0] = off  # adapt prior influence
-    return PyroSample(
-        dist.Dirichlet(
-            certainty * eye * get_ommatidia_separation(z)
-        ).to_event(1)
-    )
+    return PyroSample(dist.Dirichlet(certainty * eye * get_ommatidia_separation(z)).to_event(1))
 
 
 def wrap_pyrosample_as_func(obj):
@@ -210,7 +202,6 @@ def wrap_pyrosample_as_func(obj):
 
 
 class DirichletAdaptationPrior(PyroModule):
-
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.prior = get_dirichlet_adaptation_prior(*args, **kwargs)
@@ -234,7 +225,7 @@ class FlyAdaptationPrior(PyroModule):
         r7_with_r8=PyroSample(dist.Beta(1, 3)),
         nonlin=identity,
         scale_by_bg=True,
-        include_r1to6=True
+        include_r1to6=True,
     ):
         super().__init__()
         self.r1to6_with_r7 = r1to6_with_r7
@@ -269,8 +260,7 @@ class FlyAdaptationPrior(PyroModule):
 
         if self.scale_by_bg:
             qb_totals = torch.stack(
-                [qb[..., pale_idx].sum(-1), qb[..., yellow_idx].sum(-1)],
-                dim=-1
+                [qb[..., pale_idx].sum(-1), qb[..., yellow_idx].sum(-1)], dim=-1
             )
             X[..., pale_idx, pale_idx] /= qb_totals[..., :1]
             X[..., yellow_idx, yellow_idx] /= qb_totals[..., 1:]
@@ -298,10 +288,10 @@ class FlyAdaptationPrior(PyroModule):
         qa = self.nonlin((q * X).sum(-1))
         if self.include_r1to6:
             if joined_rh1:
-                return torch.stack([
-                    qa[..., r1to6_idx].mean(axis=-1, keepdims=True),
-                    qa[..., r7_idx+r8_idx]
-                ], dim=-1)
+                return torch.stack(
+                    [qa[..., r1to6_idx].mean(axis=-1, keepdims=True), qa[..., r7_idx + r8_idx]],
+                    dim=-1,
+                )
             return qa
         else:
             return qa[..., 2:]

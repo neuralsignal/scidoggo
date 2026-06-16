@@ -1,19 +1,20 @@
 """Radial basis function (RBF) interpolation estimator."""
+
 from __future__ import annotations
 
 import warnings
 from itertools import combinations_with_replacement
-from typing import Optional, Union
 
 import numpy as np
 from numpy.linalg import LinAlgError
 from numpy.typing import ArrayLike, NDArray
+from scipy.linalg.lapack import dgesv  # type: ignore[attr-defined]
 from scipy.spatial import KDTree
 from scipy.special import comb
-from scipy.linalg.lapack import dgesv  # type: ignore[attr-defined]
-
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import check_is_fitted
+
+from scidoggo._validation import validate_x, validate_xy
 
 # ``_rbf_kernels_pythran`` is a Pythran source module. When the extension has
 # been compiled, ``import`` resolves to the fast compiled module (same module
@@ -22,14 +23,13 @@ from sklearn.utils.validation import check_is_fitted, validate_data
 # below are available, so the package works without a compiled extension.
 try:
     from ._rbf_kernels_pythran import (
-        _build_system,
         _build_evaluation_coefficients,
+        _build_system,
         _polynomial_matrix,
     )
 except ImportError as exc:  # pragma: no cover - defensive only
     raise ImportError(
-        "Could not import RBF kernel helpers from "
-        "'scidoggo.interpolation._rbf_kernels_pythran'."
+        "Could not import RBF kernel helpers from 'scidoggo.interpolation._rbf_kernels_pythran'."
     ) from exc
 
 
@@ -143,9 +143,7 @@ def _build_and_solve_system(
         Coefficients for each RBF and monomial.
 
     """
-    lhs, rhs, shift, scale = _build_system(
-        y, d, smoothing, kernel, epsilon, powers, normalize
-    )
+    lhs, rhs, shift, scale = _build_system(y, d, smoothing, kernel, epsilon, powers, normalize)
     _, _, coeffs, info = dgesv(lhs, rhs, overwrite_a=True, overwrite_b=True)
     if info < 0:
         raise ValueError(f"The {-info}-th argument had an illegal value.")
@@ -204,11 +202,11 @@ class RbfRegression(RegressorMixin, BaseEstimator):
 
     def __init__(
         self,
-        neighbors: Optional[int] = None,
-        smoothing: Union[float, ArrayLike] = 1.0,
+        neighbors: int | None = None,
+        smoothing: float | ArrayLike = 1.0,
         kernel: str = "thin_plate_spline",
-        epsilon: Optional[float] = None,
-        degree: Optional[int] = None,
+        epsilon: float | None = None,
+        degree: int | None = None,
         normalize: str = "scale",
         bias: bool = True,
     ) -> None:
@@ -237,8 +235,8 @@ class RbfRegression(RegressorMixin, BaseEstimator):
         self,
         X: ArrayLike,
         y: ArrayLike,
-        sample_weight: Optional[ArrayLike] = None,
-    ) -> "RbfRegression":
+        sample_weight: ArrayLike | None = None,
+    ) -> RbfRegression:
         """Fit the RBF interpolant.
 
         Parameters
@@ -257,7 +255,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
             The fitted estimator.
 
         """
-        X, y = validate_data(
+        X, y = validate_xy(
             self,
             X,
             y,
@@ -277,9 +275,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
         else:
             sample_weight = np.asarray(sample_weight, dtype=float)
             if np.all(sample_weight == 0.0):
-                raise ValueError(
-                    "Cannot fit with all sample weights equal to zero."
-                )
+                raise ValueError("Cannot fit with all sample weights equal to zero.")
             smoothing = self.smoothing / sample_weight
 
         n_samples, n_features = X.shape
@@ -297,9 +293,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
             smoothing = np.asarray(smoothing, dtype=float, order="C")
             if smoothing.shape != (n_samples,):
                 raise ValueError(
-                    "Expected `smoothing` to be a "
-                    "scalar or have shape "
-                    f"({n_samples},)."
+                    f"Expected `smoothing` to be a scalar or have shape ({n_samples},)."
                 )
 
         kernel = self.kernel.lower()
@@ -312,8 +306,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
                 epsilon = 1.0
             else:
                 raise ValueError(
-                    "`epsilon` must be specified if `kernel` is not one of "
-                    f"{_SCALE_INVARIANT}."
+                    f"`epsilon` must be specified if `kernel` is not one of {_SCALE_INVARIANT}."
                 )
         else:
             epsilon = float(epsilon)
@@ -333,6 +326,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
                     "solvable, and the smoothing parameter may have an "
                     "unintuitive effect.",
                     UserWarning,
+                    stacklevel=2,
                 )
 
         neighbors = self.neighbors
@@ -424,10 +418,11 @@ class RbfRegression(RegressorMixin, BaseEstimator):
         # in each chunk we consume the same space we already occupy
         chunksize = memory_budget // (self.powers_.shape[0] + nnei) + 1
         if chunksize <= n_samples:
-            out = np.empty((n_samples, self.yfit_.shape[1]), dtype=float)
+            # yfit_ is reshaped to 2-D in fit; the stub mis-types its shape rank.
+            out = np.empty((n_samples, self.yfit_.shape[1]), dtype=np.float64)  # type: ignore[misc]
             for i in range(0, n_samples, chunksize):
                 vec = _build_evaluation_coefficients(
-                    X[i:i + chunksize, :],
+                    X[i : i + chunksize, :],
                     Xfit,
                     self.kernel_,
                     self.epsilon_,
@@ -435,7 +430,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
                     shift,
                     scale,
                 )
-                out[i:i + chunksize, :] = np.dot(vec, coeffs)
+                out[i : i + chunksize, :] = np.dot(vec, coeffs)
         else:
             vec = _build_evaluation_coefficients(
                 X,
@@ -464,7 +459,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
 
         """
         check_is_fitted(self)
-        X = validate_data(
+        X = validate_x(
             self,
             X,
             accept_sparse=False,
@@ -479,9 +474,7 @@ class RbfRegression(RegressorMixin, BaseEstimator):
         # floats in memory we already occupy. If this number is below 1e6 we
         # just use 1e6. This memory budget is used to decide how we chunk the
         # inputs.
-        memory_budget = max(
-            X.size + self.Xfit_.size + self.yfit_.size, 1000000
-        )
+        memory_budget = max(X.size + self.Xfit_.size + self.yfit_.size, 1000000)
 
         if self.neighbors is None:
             out = self._chunk_evaluator(
@@ -516,8 +509,9 @@ class RbfRegression(RegressorMixin, BaseEstimator):
             for i, j in enumerate(inv):
                 xindices_new[j].append(i)
 
-            out = np.empty((n_samples, self.yfit_.shape[1]), dtype=float)
-            for xidx, yidx in zip(xindices_new, xindices):
+            # yfit_ is reshaped to 2-D in fit; the stub mis-types its shape rank.
+            out = np.empty((n_samples, self.yfit_.shape[1]), dtype=np.float64)  # type: ignore[misc, arg-type]
+            for xidx, yidx in zip(xindices_new, xindices, strict=False):
                 # `yidx` are the indices of the observations in this
                 # neighborhood. `xidx` are the indices of the evaluation points
                 # that are using this neighborhood.

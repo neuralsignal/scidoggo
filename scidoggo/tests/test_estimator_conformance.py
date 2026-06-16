@@ -9,9 +9,9 @@ from sklearn.utils.estimator_checks import check_estimator
 
 from scidoggo import (
     CCA,
+    PLSSVD,
     PLSCanonical,
     PLSRegression,
-    PLSSVD,
     RankConstraint,
     RbfRegression,
     SelectivityModel,

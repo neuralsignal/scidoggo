@@ -3,25 +3,19 @@ Circuit modeling
 """
 
 import warnings
-import torch
 
-from pyro.nn import PyroModule
 import pyro.distributions as dist
+import torch
+from pyro.nn import PyroModule
 
-from .pyro_components import identity
-from .gaussian import FixedValueModel, UninformativePriorModel, FixedScalePriorModel
-from .weights import WeightFunc
 from .circuit_observation import ObservationModel
+from .gaussian import FixedScalePriorModel, FixedValueModel, UninformativePriorModel
+from .pyro_components import identity
+from .weights import WeightFunc
 
 
 class ConductanceBasedIntegration(PyroModule):
-
-    def __init__(
-        self,
-        reversal=0, 
-        sign=1,
-        reversal_idcs=None
-    ):
+    def __init__(self, reversal=0, sign=1, reversal_idcs=None):
         super().__init__()
         self.reversal = reversal
         self.sign = sign
@@ -54,30 +48,29 @@ def multsum(a, b, *args, **kwargs):
 
 
 class CircuitModel(PyroModule):
-
     def __init__(
-        self, 
+        self,
         recurrent_weights,  # weight function
         input_weights,  # weight function
-        recurrent_obs, 
+        recurrent_obs,
         input_obs=identity,
-        recurrent_prior=identity, 
-        input_prior=identity, 
-        recurrent_func=matmul, 
-        input_func=matmul, 
+        recurrent_prior=identity,
+        input_prior=identity,
+        recurrent_func=matmul,
+        input_func=matmul,
         combine_func=torch.add,
-        nonlin=identity, 
-        inv_tau=1, 
+        nonlin=identity,
+        inv_tau=1,
         inv_tau_idcs=None,
-        gain=1, 
+        gain=1,
         gain_idcs=None,
-        offset=0, 
+        offset=0,
         offset_idcs=None,
-        tsteps=10, 
+        tsteps=10,
         recenter=False,
         center_weighting=False,
-        eps=1e-4
-    ):  
+        eps=1e-4,
+    ):
         super().__init__()
         self.recurrent_weights = recurrent_weights
         self.input_weights = input_weights
@@ -97,7 +90,7 @@ class CircuitModel(PyroModule):
         self.recurrent_obs = recurrent_obs
         self.combine_func = combine_func
         self.eps = eps
-        self.recenter = recenter 
+        self.recenter = recenter
         self.center_weighting = center_weighting
 
         if isinstance(inv_tau, (float, int)) and isinstance(gain, (float, int)):
@@ -106,14 +99,20 @@ class CircuitModel(PyroModule):
             self.static = False
 
     def forward(
-        self, x, y, x_labels=None, y_labels=None, 
-        iw_kws={}, rw_kws={}, 
-        x_nlabels=None, y_nlabels=None, 
-        idcs=None, 
-        offset=None, 
-        inv_tau=None, 
+        self,
+        x,
+        y,
+        x_labels=None,
+        y_labels=None,
+        iw_kws={},
+        rw_kws={},
+        x_nlabels=None,
+        y_nlabels=None,
+        idcs=None,
+        offset=None,
+        inv_tau=None,
         gain=None,
-        **nonlin_kwargs
+        **nonlin_kwargs,
     ):
         """
         Forward method.
@@ -131,15 +130,15 @@ class CircuitModel(PyroModule):
         # idcs should give groupings/conditions
         # if offset, gain, or inv_tau, or any weights differ
         # what if offset, gain or inv_tau also depend on some other inputs
-        assert idcs is None, 'Not implemented!'
-        
+        assert idcs is None, "Not implemented!"
+
         if inv_tau is None:
             # need to index x, y, x0, y0, xts
             inv_tau = self.inv_tau
             # allow for shared taus
             if self.inv_tau_idcs is not None:
                 inv_tau = inv_tau[self.inv_tau_idcs]
-        
+
         if gain is None:
             gain = self.gain
             # allow for shared gains
@@ -154,8 +153,8 @@ class CircuitModel(PyroModule):
 
         static = self.static
 
-        assert x.ndim == y.ndim, 'dimensionality mismatch'
-        assert x.shape[:-1] == y.shape[:-1], 'shape mismatch'
+        assert x.ndim == y.ndim, "dimensionality mismatch"
+        assert x.shape[:-1] == y.shape[:-1], "shape mismatch"
         if x.ndim == 2:
             temporal = False
             tsteps = self.tsteps
@@ -173,54 +172,43 @@ class CircuitModel(PyroModule):
         xts = self.input_prior(x, labels=x_labels, nlabels=x_nlabels)
         if xts.ndim == 2:
             xt_ = xts
-            assert xts.shape[:-1] == x.shape[1:-1], 'shape mismatch for input prior'
-            
+            assert xts.shape[:-1] == x.shape[1:-1], "shape mismatch for input prior"
+
             # compare observed inputs to prior
             if not temporal:
                 self.input_obs(
                     x[0],  # assume x was passed as 1-d
-                    xts, 
-                    labels=x_labels
+                    xts,
+                    labels=x_labels,
                 )
             else:
-                self.input_obs(
-                    x, 
-                    xts.expand(*x.shape), 
-                    labels=x_labels
-                )
-        
+                self.input_obs(x, xts.expand(*x.shape), labels=x_labels)
+
         else:
             xt_ = xts[0]
 
             # compare observed inputs to prior
-            self.input_obs(
-                x, 
-                xts, 
-                labels=x_labels
-            )
+            self.input_obs(x, xts, labels=x_labels)
 
-            assert xts.shape[:-1] == x.shape[:-1], 'shape mismatch for input prior'
-        
+            assert xts.shape[:-1] == x.shape[:-1], "shape mismatch for input prior"
+
         # get prior for recurrent neurons
-        y0 = self.recurrent_prior(
-            y, labels=y_labels, nlabels=y_nlabels
-        ) + offset # return samples x neurons
+        y0 = (
+            self.recurrent_prior(y, labels=y_labels, nlabels=y_nlabels) + offset
+        )  # return samples x neurons
         # add offset as it is the leaky reversal potential
         if y0.ndim == 3:
             if y0.shape[0] > 1:
-                warnings.warn(
-                    "recurrent prior returns 3D tensor "
-                    "that won't be used as is"
-                )
+                warnings.warn("recurrent prior returns 3D tensor that won't be used as is")
             # just use first element of 3D tensor
             y0 = y0[0]
-        assert y0.shape[:-1] == y.shape[1:-1], 'shape mismatch for recurrent prior'
+        assert y0.shape[:-1] == y.shape[1:-1], "shape mismatch for recurrent prior"
         yt_ = y0
 
         # create empty tensor to fill
         # ypreds = torch.zeros((tsteps,)+y0.shape, dtype=FLOAT_TYPE)
         ypreds = []
-        
+
         for t in range(tsteps):
             # if center weighting - effective change will be zero if input at offset instead of at 0
             if self.center_weighting:
@@ -231,13 +219,14 @@ class CircuitModel(PyroModule):
             rhs = self.nonlin(
                 self.combine_func(
                     self.input_func(xt_, Wi, yt_),  # add yt_ for conductance based models
-                    self.recurrent_func(yin, Wr, yt_)  # add yt_ for conductance based models
-                ), **nonlin_kwargs
+                    self.recurrent_func(yin, Wr, yt_),  # add yt_ for conductance based models
+                ),
+                **nonlin_kwargs,
             )
             if static:
                 yt_ = rhs + offset
             else:
-                yt_ = (- gain * (yt_ - offset) + rhs) * (inv_tau + self.eps) + yt_
+                yt_ = (-gain * (yt_ - offset) + rhs) * (inv_tau + self.eps) + yt_
 
             # ypreds[t] = yt_
             ypreds.append(yt_)
@@ -252,12 +241,7 @@ class CircuitModel(PyroModule):
             ypreds = ypreds - y0
 
         # compare observations in circuit to predictions
-        self.recurrent_obs(
-            y, 
-            ypreds, 
-            y0.expand(*ypreds.shape), 
-            labels=y_labels
-        )
+        self.recurrent_obs(y, ypreds, y0.expand(*ypreds.shape), labels=y_labels)
 
 
 class StandardDynamicCircuitModel(CircuitModel):
@@ -274,29 +258,31 @@ class StandardDynamicCircuitModel(CircuitModel):
         self,
         recurrent_connectivity,
         input_connectivity,
-        recurrent_wprior=dist.Beta(1,1), 
-        input_wprior=dist.Beta(1,1),
-        prior_distr=dist.Normal(0,1),
-        obs_scale=1, 
-        nonlin=identity, 
+        recurrent_wprior=dist.Beta(1, 1),
+        input_wprior=dist.Beta(1, 1),
+        prior_distr=dist.Normal(0, 1),
+        obs_scale=1,
+        nonlin=identity,
         normalize=None,
-        fixed_winput=False, 
-        fixed_wrecurrent=False, 
+        fixed_winput=False,
+        fixed_wrecurrent=False,
         latent=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
-            recurrent_weights=WeightFunc(recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent), 
-            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput), 
-            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent), 
+            recurrent_weights=WeightFunc(
+                recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent
+            ),
+            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput),
+            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent),
             recurrent_prior=(
                 FixedValueModel(prior_distr, ndim=2)
-                if isinstance(prior_distr, (float, int)) else
-                UninformativePriorModel(prior_distr, ndim=2)
-            ), 
-            nonlin=nonlin, 
-            **kwargs
-        ) 
+                if isinstance(prior_distr, (float, int))
+                else UninformativePriorModel(prior_distr, ndim=2)
+            ),
+            nonlin=nonlin,
+            **kwargs,
+        )
 
 
 class ObservedInputDynamicCircuitModel(CircuitModel):
@@ -313,30 +299,32 @@ class ObservedInputDynamicCircuitModel(CircuitModel):
         self,
         recurrent_connectivity,
         input_connectivity,
-        recurrent_wprior=dist.Beta(1,1), 
-        input_wprior=dist.Beta(1,1),
-        prior_distr=dist.Normal(0,1),
+        recurrent_wprior=dist.Beta(1, 1),
+        input_wprior=dist.Beta(1, 1),
+        prior_distr=dist.Normal(0, 1),
         input_prior_scale=1,
-        input_prior_distr='normal',
-        obs_scale=1, 
+        input_prior_distr="normal",
+        obs_scale=1,
         input_obs_scale=1,
-        nonlin=identity, 
+        nonlin=identity,
         normalize=None,
-        input_normalize=None, 
-        fixed_winput=False, 
-        fixed_wrecurrent=False, 
+        input_normalize=None,
+        fixed_winput=False,
+        fixed_wrecurrent=False,
         latent=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
-            recurrent_weights=WeightFunc(recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent), 
-            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput), 
-            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent), 
-            recurrent_prior=UninformativePriorModel(prior_distr, ndim=2), 
+            recurrent_weights=WeightFunc(
+                recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent
+            ),
+            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput),
+            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent),
+            recurrent_prior=UninformativePriorModel(prior_distr, ndim=2),
             input_prior=FixedScalePriorModel(input_prior_scale, input_prior_distr),
             input_obs=ObservationModel(input_obs_scale, normalize=input_normalize),
-            nonlin=nonlin, 
-            **kwargs
+            nonlin=nonlin,
+            **kwargs,
         )
 
 
@@ -354,28 +342,30 @@ class UnobservedInputDynamicCircuitModel(CircuitModel):
         self,
         recurrent_connectivity,
         input_connectivity,
-        recurrent_wprior=dist.Beta(1,1), 
-        input_wprior=dist.Beta(1,1),
-        prior_distr=dist.Normal(0,1),
+        recurrent_wprior=dist.Beta(1, 1),
+        input_wprior=dist.Beta(1, 1),
+        prior_distr=dist.Normal(0, 1),
         input_prior_scale=1,
-        input_prior_distr='normal',
-        obs_scale=1, 
+        input_prior_distr="normal",
+        obs_scale=1,
         input_obs_scale=1,
-        nonlin=identity, 
+        nonlin=identity,
         normalize=None,
-        input_normalize=None, 
-        fixed_winput=False, 
-        fixed_wrecurrent=False, 
+        input_normalize=None,
+        fixed_winput=False,
+        fixed_wrecurrent=False,
         latent=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
-            recurrent_weights=WeightFunc(recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent), 
-            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput), 
-            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent), 
-            recurrent_prior=UninformativePriorModel(prior_distr, ndim=2), 
+            recurrent_weights=WeightFunc(
+                recurrent_connectivity, recurrent_wprior, fixed=fixed_wrecurrent
+            ),
+            input_weights=WeightFunc(input_connectivity, input_wprior, fixed=fixed_winput),
+            recurrent_obs=ObservationModel(obs_scale, normalize=normalize, latent=latent),
+            recurrent_prior=UninformativePriorModel(prior_distr, ndim=2),
             input_prior=FixedScalePriorModel(input_prior_scale, input_prior_distr),
             input_obs=ObservationModel(input_obs_scale, normalize=input_normalize),
-            nonlin=nonlin, 
-            **kwargs
+            nonlin=nonlin,
+            **kwargs,
         )

@@ -19,7 +19,7 @@ try:
     )
 except ImportError as exc:
     raise MissingDependencyError(
-        'deep_implicit_circuits requires the [deep] extra. '
+        "deep_implicit_circuits requires the [deep] extra. "
         'Install with: pip install "scidoggo[deep]"'
     ) from exc
 

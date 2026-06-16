@@ -8,19 +8,17 @@ the concrete measurement-conversion implementation. The abstract base classes
 and the core encoding model live in :mod:`scidoggo.circuit_models.chromatic`.
 """
 
-import torch
-
-from pyro.nn import PyroSample
 import pyro.distributions as dist
+import torch
+from pyro.nn import PyroSample
 
+from .chromatic import (
+    MeasurementConversion,
+    SpectralSensitivityModel,
+    Stavenga1993SensitivityModel,
+)
 from .interp1d import Interp1d
 from .pyro_components import FLOAT_TYPE
-from .chromatic import (
-    Stavenga1993SensitivityModel,
-    SpectralSensitivityModel,
-    MeasurementConversion,
-)
-
 
 interp1d = Interp1d()
 
@@ -29,25 +27,24 @@ class FlyStavenga1993SensitivityModel(Stavenga1993SensitivityModel):
     """
     Fly model with defined priors.
     """
+
     _alpha_max = dist.Uniform(
         torch.tensor([450, 300, 340, 450, 525], dtype=FLOAT_TYPE),
-        torch.tensor([550, 340, 380, 500, 675], dtype=FLOAT_TYPE)
+        torch.tensor([550, 340, 380, 500, 675], dtype=FLOAT_TYPE),
     )
     # _beta_max = dist.Uniform(
     #     torch.tensor([320, 345, 345, 345, 345], dtype=FLOAT_TYPE),
     #     torch.tensor([380, 355, 355, 355, 355], dtype=FLOAT_TYPE)
     # )
     _a_alpha = dist.Uniform(
-        torch.tensor([140]*5, dtype=FLOAT_TYPE),
-        torch.tensor([700]*5, dtype=FLOAT_TYPE)
+        torch.tensor([140] * 5, dtype=FLOAT_TYPE), torch.tensor([700] * 5, dtype=FLOAT_TYPE)
     )
     _a_beta = dist.Uniform(
-        torch.tensor([70]*5, dtype=FLOAT_TYPE),
-        torch.tensor([700]*5, dtype=FLOAT_TYPE)
+        torch.tensor([70] * 5, dtype=FLOAT_TYPE), torch.tensor([700] * 5, dtype=FLOAT_TYPE)
     )
     _A_beta = dist.Uniform(
-        torch.tensor([1]+[0]*2+[0]*2, dtype=FLOAT_TYPE),
-        torch.tensor([4]+[0.01]*2+[0.6]*2, dtype=FLOAT_TYPE)
+        torch.tensor([1] + [0] * 2 + [0] * 2, dtype=FLOAT_TYPE),
+        torch.tensor([4] + [0.01] * 2 + [0.6] * 2, dtype=FLOAT_TYPE),
     )
 
     def __init__(
@@ -58,7 +55,7 @@ class FlyStavenga1993SensitivityModel(Stavenga1993SensitivityModel):
         a_alpha=None,
         a_beta=None,
         A_beta=None,
-        **kwargs
+        **kwargs,
     ):
         if alpha_max is None:
             alpha_max = PyroSample(self._alpha_max)
@@ -78,7 +75,7 @@ class FlyStavenga1993SensitivityModel(Stavenga1993SensitivityModel):
             a_alpha=a_alpha,
             a_beta=a_beta,
             A_beta=A_beta,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -86,9 +83,10 @@ class FlyStavenga1993InnerSensitivityModel(FlyStavenga1993SensitivityModel):
     """
     Fly model with defined priors.
     """
+
     _alpha_max = dist.Uniform(
         torch.tensor([325, 350, 425, 525], dtype=FLOAT_TYPE),
-        torch.tensor([340, 365, 450, 675], dtype=FLOAT_TYPE)
+        torch.tensor([340, 365, 450, 675], dtype=FLOAT_TYPE),
     )
     # _beta_max = torch.tensor([350, 350, 350, 350], dtype=FLOAT_TYPE)
     # dist.Uniform(
@@ -97,25 +95,20 @@ class FlyStavenga1993InnerSensitivityModel(FlyStavenga1993SensitivityModel):
     # )
     # same alpha band width for all photoreceptors
     _a_alpha = dist.Uniform(
-        torch.tensor(100, dtype=FLOAT_TYPE),
-        torch.tensor(500, dtype=FLOAT_TYPE)
+        torch.tensor(100, dtype=FLOAT_TYPE), torch.tensor(500, dtype=FLOAT_TYPE)
     )
     # same beta band width for all photoreceptors
-    _a_beta = dist.Uniform(
-        torch.tensor(200, dtype=FLOAT_TYPE),
-        torch.tensor(300, dtype=FLOAT_TYPE)
-    )
+    _a_beta = dist.Uniform(torch.tensor(200, dtype=FLOAT_TYPE), torch.tensor(300, dtype=FLOAT_TYPE))
     # same beta band contribution across photoreceptors
     _A_beta = dist.Uniform(
         # torch.tensor([0]*2+[0]*2, dtype=FLOAT_TYPE),
         # torch.tensor([0.01]*2+[0.4, 0.7], dtype=FLOAT_TYPE)
         torch.tensor(0, dtype=FLOAT_TYPE),
-        torch.tensor(0.8, dtype=FLOAT_TYPE)
+        torch.tensor(0.8, dtype=FLOAT_TYPE),
     )
 
 
 class FixedSensitivity(SpectralSensitivityModel):
-
     def get_prior(self):
         pass
 
@@ -124,12 +117,9 @@ class FixedSensitivity(SpectralSensitivityModel):
 
 
 class StrongNormalSensitivityPrior(SpectralSensitivityModel):
-
     def get_prior(self):
         return PyroSample(
-            dist.Normal(
-                self.mean, self.sd / torch.sqrt(self.n)
-            ).to_event(self.mean.ndim)
+            dist.Normal(self.mean, self.sd / torch.sqrt(self.n)).to_event(self.mean.ndim)
         )
 
     def forward(self, *args):
@@ -138,11 +128,8 @@ class StrongNormalSensitivityPrior(SpectralSensitivityModel):
 
 
 class WeakNormalSensitivityPrior(SpectralSensitivityModel):
-
     def get_prior(self):
-        return PyroSample(
-            dist.Normal(self.mean, self.sd).to_event(self.mean.ndim)
-        )
+        return PyroSample(dist.Normal(self.mean, self.sd).to_event(self.mean.ndim))
 
     def forward(self, *args):
         # clamp sensitivity at zero
@@ -150,7 +137,6 @@ class WeakNormalSensitivityPrior(SpectralSensitivityModel):
 
 
 class InterpolateSumMeasurement(MeasurementConversion):
-
     def forward(self, outputs):
         assert outputs.ndim == 2
         n_stimuli, _ = outputs.shape

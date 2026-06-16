@@ -31,7 +31,7 @@ jobs:
       - name: Ruff format check
         run: ruff format --check scidoggo
       - name: Mypy (core)
-        run: mypy scidoggo
+        run: mypy
       - name: Pytest (core only)
         run: pytest -m "not circuits and not deep and not neural and not sparse"
 
