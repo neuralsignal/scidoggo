@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=61", "wheel", "pythran>=0.14,<0.18"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scidoggo"
+dynamic = ["version"]
+description = "A unified collection of scientific models with a scikit-learn API."
+readme = "README.rst"
+requires-python = ">=3.10,<3.14"
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Matthias Christenson", email = "gucky@gucky.eu" }]
+maintainers = [{ name = "Matthias Christenson", email = "gucky@gucky.eu" }]
+keywords = ["machine-learning", "scikit-learn", "neuroscience", "regression"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=1.24,<3",
+    "scipy>=1.10,<2",
+    "scikit-learn>=1.3,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/neuralsignal/scidoggo"
+Repository = "https://github.com/neuralsignal/scidoggo"
+
+[project.optional-dependencies]
+sparse = ["cvxpy>=1.4,<2"]
+neural = ["torch>=2.1,<3", "skorch>=0.15,<1"]
+circuits = ["pyro-ppl>=1.8,<2", "torch>=2.1,<3", "pandas>=2.0,<3", "tqdm>=4.0,<5"]
+deep = ["torch>=2.1,<3", "pytorch-lightning>=2.1,<3", "torcheval>=0.0.6"]
+graph = ["networkx>=3.0,<4"]
+accelerate = ["pythran>=0.14,<0.18"]
+docs = [
+    "sphinx>=7,<9",
+    "sphinx-gallery>=0.15",
+    "sphinx_rtd_theme>=2",
+    "numpydoc>=1.6",
+    "matplotlib>=3.7",
+]
+test = ["pytest>=8,<9", "pytest-cov>=4", "hypothesis>=6,<7"]
+dev = ["ruff>=0.5", "mypy>=1.8", "scidoggo[test,docs,accelerate]"]
+all = ["scidoggo[sparse,neural,circuits,deep,graph,accelerate]"]
+
+[tool.setuptools.dynamic]
+version = { attr = "scidoggo._version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["scidoggo*"]
+
+[tool.setuptools.package-data]
+"scidoggo.interpolation" = ["_rbf_kernels_pythran.py"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["scidoggo/tests"]
+markers = [
+    "slow: marks tests as slow",
+    "circuits: requires the [circuits] extra (pyro)",
+    "deep: requires the [deep] extra (pytorch-lightning)",
+    "neural: requires the [neural] extra (torch+skorch)",
+    "sparse: requires the [sparse] extra (cvxpy)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+files = ["scidoggo"]
+exclude = "(circuit_models|deep_implicit_circuits)"
+
+[tool.coverage.run]
+branch = true
+source = ["scidoggo"]
