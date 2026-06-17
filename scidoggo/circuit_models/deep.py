@@ -1,13 +1,9 @@
-"""
-"""
+""" """
 
-import torch.nn as nn
 import torch
+import torch.nn as nn
+from pyro.nn import PyroModule, PyroParam
 from torch.distributions import constraints
-
-import pyro
-from pyro.nn import PyroModule, PyroSample, PyroParam
-import pyro.distributions as dist
 
 
 class ANN(PyroModule):
@@ -16,9 +12,14 @@ class ANN(PyroModule):
     """
 
     def __init__(
-        self, input_dim=1, hidden_dim=100, output_dim=1,
-        hidden_layers=1, nonlin=torch.relu,
-        output_nonlin=None, bias=True,
+        self,
+        input_dim=1,
+        hidden_dim=100,
+        output_dim=1,
+        hidden_layers=1,
+        nonlin=torch.relu,
+        output_nonlin=None,
+        bias=True,
     ):
         super().__init__()
 
@@ -29,7 +30,7 @@ class ANN(PyroModule):
             setattr(
                 self,
                 self.get_hidden_layer_name(i),
-                PyroModule[nn.Linear](hidden_dim, hidden_dim, bias=bias)
+                PyroModule[nn.Linear](hidden_dim, hidden_dim, bias=bias),
             )
 
         self.output_layer = PyroModule[nn.Linear](hidden_dim, output_dim, bias=bias)
@@ -38,7 +39,7 @@ class ANN(PyroModule):
         self.output_nonlin = output_nonlin
 
     def get_hidden_layer_name(self, i):
-        return f'hidden_layer_{i}'
+        return f"hidden_layer_{i}"
 
     def get_hidden_layer(self, i):
         return getattr(self, self.get_hidden_layer_name(i))
@@ -47,9 +48,7 @@ class ANN(PyroModule):
         x = self.nonlin(self.input_layer(x))
 
         for i in range(self.hidden_layers):
-            x = self.nonlin(
-                self.get_hidden_layer(i)(x)
-            )
+            x = self.nonlin(self.get_hidden_layer(i)(x))
 
         y = self.output_layer(x)
         if self.output_nonlin is None:
@@ -75,13 +74,17 @@ class MonotonicNonlinearity(ANN):
         input_scale=1,
         output_scale=1,
         bayesian=False,
-        **kwargs
+        **kwargs,
     ):
         # TODO make bayesian
         super().__init__(
-            input_dim, hidden_dim, output_dim,
-            hidden_layers=hidden_layers, nonlin=nonlin,
-            output_nonlin=output_nonlin, **kwargs
+            input_dim,
+            hidden_dim,
+            output_dim,
+            hidden_layers=hidden_layers,
+            nonlin=nonlin,
+            output_nonlin=output_nonlin,
+            **kwargs,
         )
 
         self.pos = pos
@@ -97,19 +100,19 @@ class MonotonicNonlinearity(ANN):
             sign = -1
 
         if self.bayesian:
-            raise NotImplementedError('bayesian')
+            raise NotImplementedError("bayesian")
 
         else:
             self.input_layer.weight = PyroParam(
                 sign * torch.abs(self.input_layer.weight.detach().clone()),
                 constraint=constraint,
-                event_dim=2
+                event_dim=2,
             )
 
             self.output_layer.weight = PyroParam(
                 sign * torch.abs(self.output_layer.weight.detach().clone()),
                 constraint=constraint,
-                event_dim=2
+                event_dim=2,
             )
 
             for i in range(self.hidden_layers):
@@ -117,7 +120,7 @@ class MonotonicNonlinearity(ANN):
                 layer.weight = PyroParam(
                     sign * torch.abs(layer.weight.detach().clone()),
                     constraint=constraint,
-                    event_dim=2
+                    event_dim=2,
                 )
 
     def forward(self, x):

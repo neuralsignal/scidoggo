@@ -2,17 +2,14 @@
 Adaptation Functions
 """
 
-import torch
-
-from pyro.nn import PyroModule, PyroSample
 import pyro.distributions as dist
+import torch
+from pyro.nn import PyroModule, PyroSample
 
-
-from .utils import identity, FLOAT_TYPE, get_dirichlet_adaptation_prior
+from .pyro_components import FLOAT_TYPE, get_dirichlet_adaptation_prior, identity
 
 
 class DirichletAdaptationPrior(PyroModule):
-
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.prior = get_dirichlet_adaptation_prior(*args, **kwargs)
@@ -36,7 +33,7 @@ class FlyAdaptationPrior(PyroModule):
         r7_with_r8=PyroSample(dist.Beta(1, 3)),
         nonlin=identity,
         scale_by_bg=True,
-        include_r1to6=True
+        include_r1to6=True,
     ):
         super().__init__()
         self.r1to6_with_r7 = r1to6_with_r7
@@ -71,8 +68,7 @@ class FlyAdaptationPrior(PyroModule):
 
         if self.scale_by_bg:
             qb_totals = torch.stack(
-                [qb[..., pale_idx].sum(-1), qb[..., yellow_idx].sum(-1)],
-                dim=-1
+                [qb[..., pale_idx].sum(-1), qb[..., yellow_idx].sum(-1)], dim=-1
             )
             X[..., pale_idx, pale_idx] /= qb_totals[..., :1]
             X[..., yellow_idx, yellow_idx] /= qb_totals[..., 1:]
@@ -100,10 +96,10 @@ class FlyAdaptationPrior(PyroModule):
         qa = self.nonlin((q * X).sum(-1))
         if self.include_r1to6:
             if joined_rh1:
-                return torch.stack([
-                    qa[..., r1to6_idx].mean(axis=-1, keepdims=True),
-                    qa[..., r7_idx+r8_idx]
-                ], dim=-1)
+                return torch.stack(
+                    [qa[..., r1to6_idx].mean(axis=-1, keepdims=True), qa[..., r7_idx + r8_idx]],
+                    dim=-1,
+                )
             return qa
         else:
             return qa[..., 2:]

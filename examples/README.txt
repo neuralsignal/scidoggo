@@ -1,6 +1,8 @@
 .. _general_examples:
 
-General examples
+Examples gallery
 ================
 
-Introductory examples.
+Runnable examples illustrating the core ``scidoggo`` estimators. Every example
+here uses only the core dependencies (numpy / scipy / scikit-learn /
+matplotlib), so it runs without any optional extras installed.

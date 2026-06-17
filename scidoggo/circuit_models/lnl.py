@@ -2,16 +2,14 @@
 LNL models
 """
 
-import torch
-
 import pyro
-from pyro.nn import PyroModule
 import pyro.distributions as dist
+import torch
+from pyro.nn import PyroModule
 
-
-from .utils import identity
-from .weights import WeightFunc, MonotonicWeight, FuncWeight
 from .gaussian import GaussianObsEncodingModel
+from .pyro_components import identity
+from .weights import FuncWeight, MonotonicWeight, WeightFunc
 
 
 class LnlModel(PyroModule):
@@ -19,12 +17,7 @@ class LnlModel(PyroModule):
     Simple linear-nonlinear encoding model
     """
 
-    def __init__(
-        self,
-        weight_func,
-        nonlin=identity,
-        func=torch.matmul
-    ):
+    def __init__(self, weight_func, nonlin=identity, func=torch.matmul):
         super().__init__()
         self.weight_func = weight_func
         self.nonlin = nonlin
@@ -32,20 +25,11 @@ class LnlModel(PyroModule):
 
     def forward(self, X, *args, **kwargs):
         W = self.weight_func(*args, **kwargs)
-        pyro.deterministic(
-            self._pyro_get_fullname("W"),
-            W
-        )
+        pyro.deterministic(self._pyro_get_fullname("W"), W)
         ypred = self.func(X, W)
-        pyro.deterministic(
-            self._pyro_get_fullname("ylinear"),
-            ypred
-        )
+        pyro.deterministic(self._pyro_get_fullname("ylinear"), ypred)
         ypred = self.nonlin(ypred)
-        pyro.deterministic(
-            self._pyro_get_fullname("ypred"),
-            ypred
-        )
+        pyro.deterministic(self._pyro_get_fullname("ypred"), ypred)
         return ypred
 
 
@@ -60,16 +44,13 @@ class DeepLnlModel(LnlModel):
         output_ndim,
         weight_prior=dist.Normal(0, 100),
         nonlin=identity,
-        **monotonic_kwargs
+        **monotonic_kwargs,
     ):
         weight_func = MonotonicWeight(
-            torch.ones((input_ndim, output_ndim)),
-            prior=weight_prior,
-            **monotonic_kwargs
+            torch.ones((input_ndim, output_ndim)), prior=weight_prior, **monotonic_kwargs
         )
         super().__init__(
-            weight_func, nonlin=nonlin,
-            func=lambda x, w: (x[..., None] * w).sum(axis=-2)
+            weight_func, nonlin=nonlin, func=lambda x, w: (x[..., None] * w).sum(axis=-2)
         )
 
 
@@ -87,7 +68,7 @@ class FuncLnlModel(LnlModel):
         weight_offset=None,
         weight_normalize=None,
         nonlin=identity,
-        **weight_kwargs
+        **weight_kwargs,
     ):
         weight_func = FuncWeight(
             torch.ones((input_ndim, output_ndim)),
@@ -95,11 +76,10 @@ class FuncLnlModel(LnlModel):
             offset=weight_offset,
             nonlin=weight_nonlin,
             normalize=weight_normalize,
-            **weight_kwargs
+            **weight_kwargs,
         )
         super().__init__(
-            weight_func, nonlin=nonlin,
-            func=lambda x, w: (x[..., None] * w).sum(axis=-2)
+            weight_func, nonlin=nonlin, func=lambda x, w: (x[..., None] * w).sum(axis=-2)
         )
 
 
@@ -116,19 +96,19 @@ class SimpleLnlModel(LnlModel):
         weight_offset=None,
         weight_normalize=None,
         nonlin=identity,
-        **weight_kws
+        **weight_kws,
     ):
         weight_func = WeightFunc(
             torch.ones((input_ndim, output_ndim)),
-            prior=weight_prior, offset=weight_offset,
+            prior=weight_prior,
+            offset=weight_offset,
             normalize=weight_normalize,
-            **weight_kws
+            **weight_kws,
         )
         super().__init__(weight_func, nonlin=nonlin)
 
 
 class GaussianObsLnlModel(GaussianObsEncodingModel):
-
     def __init__(
         self,
         input_ndim,
@@ -136,22 +116,24 @@ class GaussianObsLnlModel(GaussianObsEncodingModel):
         weight_prior=dist.Normal(0, 100),
         nonlin=identity,
         weight_offset=None,
-        y_scale=1, normalize=None,
+        y_scale=1,
+        normalize=None,
         weight_normalize=None,
-        **weight_kws
+        **weight_kws,
     ):
         e_model = SimpleLnlModel(
-            input_ndim, output_ndim,
+            input_ndim,
+            output_ndim,
             weight_prior=weight_prior,
-            nonlin=nonlin, weight_offset=weight_offset,
+            nonlin=nonlin,
+            weight_offset=weight_offset,
             weight_normalize=weight_normalize,
-            **weight_kws
+            **weight_kws,
         )
         super().__init__(e_model, y_scale=y_scale, normalize=normalize)
 
 
 class GaussianObsFuncLnlModel(GaussianObsEncodingModel):
-
     def __init__(
         self,
         input_ndim,
@@ -160,34 +142,36 @@ class GaussianObsFuncLnlModel(GaussianObsEncodingModel):
         weight_prior=dist.Normal(0, 100),
         nonlin=identity,
         weight_offset=None,
-        y_scale=1, normalize=None,
+        y_scale=1,
+        normalize=None,
         weight_normalize=None,
-        **weight_kws
+        **weight_kws,
     ):
         e_model = FuncLnlModel(
-            input_ndim, output_ndim,
+            input_ndim,
+            output_ndim,
             weight_nonlin=weight_nonlin,
             weight_prior=weight_prior,
             weight_normalize=weight_normalize,
-            nonlin=nonlin, weight_offset=weight_offset, **weight_kws
+            nonlin=nonlin,
+            weight_offset=weight_offset,
+            **weight_kws,
         )
         super().__init__(e_model, y_scale=y_scale, normalize=normalize)
 
 
 class GaussianObsDeepLnlModel(GaussianObsEncodingModel):
-
     def __init__(
         self,
         input_ndim,
         output_ndim,
         weight_prior=dist.Normal(0, 100),
         nonlin=identity,
-        y_scale=1, normalize=None,
-        **monotonic_kwargs
+        y_scale=1,
+        normalize=None,
+        **monotonic_kwargs,
     ):
         e_model = DeepLnlModel(
-            input_ndim, output_ndim,
-            weight_prior=weight_prior,
-            nonlin=nonlin, **monotonic_kwargs
+            input_ndim, output_ndim, weight_prior=weight_prior, nonlin=nonlin, **monotonic_kwargs
         )
         super().__init__(e_model, y_scale=y_scale, normalize=normalize)

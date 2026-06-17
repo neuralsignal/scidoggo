@@ -1,5 +1,6 @@
-# project-specific files
-scidoggo/_rbf/_rbfinterp_pythran.cpp
+# project-specific files: Pythran-generated build artifacts
+scidoggo/interpolation/_rbf_kernels_pythran.cpp
+scidoggo/**/*.cpp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
