@@ -6,9 +6,11 @@ import pyro.distributions as dist
 
 from ..chromatic import (
     ChromaticEncodingModel,
+    NoiseThresholdedPrAdaptation,
+)
+from ..chromatic_priors import (
     FlyStavenga1993InnerSensitivityModel,
     FlyStavenga1993SensitivityModel,
-    NoiseThresholdedPrAdaptation,
 )
 from ..gaussian import GaussianObsEncodingModel
 from ..lnl import LnlModel

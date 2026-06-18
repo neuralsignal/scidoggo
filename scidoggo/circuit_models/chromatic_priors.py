@@ -20,8 +20,6 @@ from .chromatic import (
 from .interp1d import Interp1d
 from .pyro_components import FLOAT_TYPE
 
-interp1d = Interp1d()
-
 
 class FlyStavenga1993SensitivityModel(Stavenga1993SensitivityModel):
     """
@@ -152,5 +150,5 @@ class InterpolateSumMeasurement(MeasurementConversion):
             # (wavlengths x samples).T
             # clamp spectrum to zero
             # get new y array
-            spectrum += torch.relu(interp1d(moutput, measurement, output)).T
+            spectrum += torch.relu(Interp1d.apply(moutput, measurement, output)).T
         return spectrum
