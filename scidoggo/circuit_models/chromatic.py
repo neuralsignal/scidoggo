@@ -50,7 +50,7 @@ def calc_log_excitation(wls, s_filter, i_spectrum, b_spectrum=None):
 
 
 class PhotoreceptorAdaptation(PyroModule):
-    """
+    r"""
     Photoreceptor Adaptation model
 
     .. math::
@@ -79,7 +79,7 @@ class PhotoreceptorAdaptation(PyroModule):
 
 
 class NoiseThresholdedPrAdaptation(PyroModule):
-    """
+    r"""
     Noise thresholded photoreceptor adaptation:
 
     .. math::
